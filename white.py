@@ -74,22 +74,20 @@ if ally_data and enemy_data:
             
             for name, travel_sec in ally_data.items():
                 departure_time = impact_time - timedelta(seconds=travel_sec)
-                # 「発射！」を「スタート」に変更
                 result_text += f"● {name}：{departure_time.strftime('%H:%M:%S')} スタート\n"
             
             result_text += "------------------\n"
             result_text += "※この時刻にボタンを押してください"
 
-            # 結果を表示
-            st.text_area("（6）計算結果", value=result_text, height=200)
+            # --- 結果の表示とコピー枠 ---
+            st.write("▼ 以下の枠内をタップしてコピーしてください")
+            # st.codeを使うと、枠の右上に標準のコピーボタンが表示されます
+            st.code(result_text, language="text")
             
-            # --- コピーボタンの実装 ---
-            st.copy_to_clipboard(result_text)
-            st.button("📋 内容をコピーする", on_click=lambda: st.toast("コピーしました！"), use_container_width=True)
-            st.info("上のボタンを押すと、チャットに貼り付けられる状態になります。")
+            st.info("↑ 枠の右上のアイコンをタップするとクリップボードにコピーされます。")
             
         except ValueError:
-            st.error("入力形式が正しくありません。")
+            st.error("入力形式（HH:mm:ss や 分:秒）が正しくありません。")
         except Exception as e:
             st.error(f"エラーが発生しました: {e}")
 else:
