@@ -80,7 +80,6 @@ if ally_data and enemy_data:
                     result_text += f"●{name}：敵の行軍残り【{time_str}】でスタート\n"
 
             result_text += "--------------------------\n"
-            result_text += "※ラグを考慮し1秒早めのタップ推奨"
 
             # 結果表示
             st.write("▼ 以下の枠内をコピー！")
