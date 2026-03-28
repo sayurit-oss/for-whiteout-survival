@@ -13,13 +13,12 @@ with st.expander("👤 集結主リストの初期設定", expanded=True):
     all_members_input = st.text_area("集結主候補の全員分を入力", height=150, 
                                    placeholder="りんご 2:30\nみかん 1:45\nぶどう 3:10", key="member_list")
 
-# データ解析関数（全角スペース対応版）
+# データ解析関数
 def parse_input(text):
     data = {}
     if not text: return data
     for line in text.strip().split('\n'):
         try:
-            # 全角スペースを半角に置換して分割
             parts = line.replace('　', ' ').split()
             if len(parts) < 2: continue
             name = parts[0]
@@ -60,3 +59,36 @@ if all_members_data:
         now = datetime.now()
         col_h, col_m = st.columns(2)
         with col_h:
+            h_list = [f"{i:02d}" for i in range(24)]
+            selected_h = st.selectbox("時", h_list, index=now.hour)
+        with col_m:
+            m_list = [f"{i:02d}" for i in range(60)]
+            default_m_idx = (now.minute + 5) % 60
+            selected_m = st.selectbox("分", m_list, index=default_m_idx)
+
+        # --- 計算ボタン ---
+        if st.button("🚀 計算してコピー用を作成", use_container_width=True, type="primary"):
+            try:
+                base_rally_start_dt = datetime.now().replace(
+                    hour=int(selected_h), minute=int(selected_m), second=0, microsecond=0
+                )
+                base_departure_dt = base_rally_start_dt + timedelta(minutes=rally_wait_min)
+                target_impact_dt = base_departure_dt + timedelta(seconds=all_members_data[longest_name])
+                
+                # --- (5) 結果作成 ---
+                st.success(f"目標着弾予定：{target_impact_dt.strftime('%H:%M:%S')}")
+                
+                result_text = f"【SVS同時着弾指示】\n"
+                result_text += f"目標着弾: {target_impact_dt.strftime('%H:%M:%S')}\n"
+                result_text += "--------------------------\n"
+                
+                sorted_selected = sorted(selected_names, key=lambda x: all_members_data[x], reverse=True)
+                
+                for name in sorted_selected:
+                    travel_sec = all_members_data[name]
+                    departure_dt = target_impact_dt - timedelta(seconds=travel_sec)
+                    rally_start_dt = departure_dt - timedelta(minutes=rally_wait_min)
+                    
+                    m_s = f"{all_members_data[name]//60}:{all_members_data[name]%60:02d}"
+                    result_text += f"●{name} ({m_s})\n"
+                    result_text += f"
