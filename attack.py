@@ -91,4 +91,19 @@ if all_members_data:
                     
                     m_s = f"{all_members_data[name]//60}:{all_members_data[name]%60:02d}"
                     result_text += f"●{name} ({m_s})\n"
-                    result_text += f"
+                    result_text += f" ├ 集結：{rally_start_dt.strftime('%H:%M:%S')}\n"
+                    result_text += f" └ スタート：{departure_dt.strftime('%H:%M:%S')}\n"
+                
+                result_text += "--------------------------\n"
+                result_text += f"※集結{rally_wait_min}分設定"
+
+                st.write("▼ 以下の枠内をコピー！")
+                st.code(result_text, language="text")
+                st.info("右上のアイコンをタップしてコピー完了")
+
+            except Exception as e:
+                st.error(f"エラーが発生しました: {e}")
+    else:
+        st.info("（2）で今回の参加者にチェックを入れてください。")
+else:
+    st.warning("まずは「集結主リスト」に全員分の名前と時間を入力してください。")
