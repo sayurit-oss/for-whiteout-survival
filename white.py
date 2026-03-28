@@ -6,10 +6,11 @@ st.set_page_config(page_title="ホワサバSVS計算機", layout="centered")
 
 st.title("🏹 SVS着弾合わせ・差し込み")
 st.caption("全ての項目を入力後、一番下の「計算する」をタップしてください")
+st.caption("テキストボックスエリアは、記入後に「確定」や「✓」などを入れてください。PCならエンターで可。でないと反映されません。")
 
 # --- 名簿設定 ---
 with st.expander("👤 味方と敵の名簿を設定する", expanded=True):
-    st.write("形式：名前[スペース]分:秒　※スペースは半角、全角どちらでも！") 
+    st.write("形式：名前[スペース]分:秒　※数値とコロンは半角。※スペースは半角、全角どちらでも！") 
     ally_input = st.text_area("味方の行軍時間", height=120, placeholder="りんご 2:30\nみかん 1:45", key="ally_list")
     enemy_input = st.text_area("敵候補の行軍時間", height=120, placeholder="にく 1:20\nさかな 2:00", key="enemy_list")
 
