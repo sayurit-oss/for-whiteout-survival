@@ -78,7 +78,6 @@ if all_members_data:
                 # --- (5) 結果作成 ---
                 st.success(f"目標着弾予定：{target_impact_dt.strftime('%H:%M:%S')}")
                 
-                result_text = f"【SVS同時着弾指示】\n"
                 result_text += f"目標着弾: {target_impact_dt.strftime('%H:%M:%S')}\n"
                 result_text += "--------------------------\n"
                 
