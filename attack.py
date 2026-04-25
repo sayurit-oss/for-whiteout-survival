@@ -91,8 +91,7 @@ if all_members_data:
                     
                     m_s = f"{all_members_data[name]//60}:{all_members_data[name]%60:02d}"
                     result_text += f"●{name} ({m_s})\n"
-                    result_text += f" ├ 集結：{rally_start_dt.strftime('%H:%M:%S')}\n"
-                    result_text += f" └ スタート：{departure_dt.strftime('%H:%M:%S')}\n"
+                    result_text += f" └ 集結：{rally_start_dt.strftime('%H:%M:%S')}\n"
                 
                 result_text += "--------------------------\n"
                 result_text += f"※集結{rally_wait_min}分設定"
