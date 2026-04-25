@@ -69,6 +69,7 @@ if all_members_data:
         # --- 計算ボタン ---
         if st.button("🚀 計算してコピー用を作成", use_container_width=True, type="primary"):
             try:
+                result_text = ""
                 base_rally_start_dt = datetime.now().replace(
                     hour=int(selected_h), minute=int(selected_m), second=0, microsecond=0
                 )
