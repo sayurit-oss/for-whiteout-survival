@@ -1,118 +1,83 @@
 import streamlit as st
-import pandas as pd
 import json
 import os
 import shutil
-import glob
-from datetime import datetime, timedelta
+from datetime import datetime
 
-# --- 基本設定 ---
-DB_FILE = 'event_database.json'
-BACKUP_DIR = 'backups'
+# --- 設定 ---
+MANUAL_FILE = 'manual_data.json'
+BACKUP_DIR = 'backups_manual'
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
-# --- データベース操作関数 ---
-def load_db():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
+# --- データの読み書き ---
+def load_manual():
+    if os.path.exists(MANUAL_FILE):
+        with open(MANUAL_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    return {}
+    # 初期データ
+    return {
+        "👥 メンバー管理": "## 1. 新規加入者の審査・承認\n申請一覧を確認し、以下の条件を**すべて**満たす場合のみ承認します...",
+        "🚩 領土・資源": "## 1. 効率的なルート作成\n領土は「最短距離」かつ「最大効率」で広げるのが基本です...",
+        "⚔️ イベント攻略": "## 1. 【熊狩り】\n🐻今日は熊狩り🐻\n🚩 集結を出す人：自分の1番強い英雄でお願いします！..."
+    }
 
-def save_db(db):
+def save_manual(data):
     # メイン保存
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
-        json.dump(db, f, ensure_ascii=False, indent=4)
-    # 保存時に自動バックアップを作成
+    with open(MANUAL_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    # バックアップ
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = os.path.join(BACKUP_DIR, f"event_db_{ts}.json")
-    with open(backup_path, 'w', encoding='utf-8') as f:
-        json.dump(db, f, ensure_ascii=False, indent=4)
-    # 古いバックアップ（7日以上）を掃除
-    clean_old_backups()
+    shutil.copy(MANUAL_FILE, os.path.join(BACKUP_DIR, f"manual_v_{ts}.json"))
 
-def clean_old_backups():
-    now = datetime.now()
-    for f in glob.glob(os.path.join(BACKUP_DIR, "event_db_*.json")):
-        if now - datetime.fromtimestamp(os.path.getctime(f)) > timedelta(days=7):
-            os.remove(f)
+# --- UIセクション ---
 
-# --- マニュアル表示（すべて折りたたみ形式） ---
-def manual_page():
+def manual_view_page():
     st.title("📜 MMC同盟 運営バイブル")
-    st.info("「親しみやすさ × メリハリ」楽しく、正しく、勝つ！")
+    manual_data = load_manual()
+    
+    # すべて折りたたみ（Expander）で表示
+    for title, content in manual_data.items():
+        with st.expander(title):
+            st.markdown(content)
 
-    tab1, tab2, tab3 = st.tabs(["👥 メンバー管理", "🚩 領土・資源", "⚔️ イベント攻略"])
-
-    with tab1:
-        with st.expander("1. 新規加入の審査基準"):
-            st.markdown("""
-            - **炉レベル**: 25以上 / **総力**: 3000万以上
-            - **名前**: 初期ネーム以外
-            - **⚠️ IDチェック**: **IDが「74」始まり**はスパイ警戒！個別メッセージで意思疎通を確認。
-            """)
-        with st.expander("2. R3への昇格ステップ"):
-            st.markdown("1. 盟主にフレンド申請\n2. 本部周辺へ移転\n3. 名前を「ʕ·ᴥ·ʔᴹᴹᶜ」に変更")
-        with st.expander("3. 非アクティブ整理（退会処置）"):
-            st.code("お疲れ様です。長期未ログインのため、一旦同盟を離脱していただく形となります。また戻られた際には、再度申請してくださいね～(*^^*) 歓迎します！")
-
-    with tab2:
-        with st.expander("1. 効率的なルート作成と旗建設"):
-            st.markdown("- **最短ルート**: 同盟資源地や重要施設（城砦・要塞）を目指す。\n- **他同盟との距離**: NAPに基づき、最低1マス以上空ける。")
-        with st.expander("2. パズル用「兵1旗」の運用"):
-            st.markdown("**目的**: 建設時間を長くし、全員がパズルタスクをクリアできるようにする。")
-            st.code("パズル用の旗なので、兵士1・英雄なしでお願いします！一旦送還しますね。")
-        with st.expander("3. 同盟安全採集ポイントの設置"):
-            st.markdown("順番：養殖場 ⇒ 製材所 ⇒ コークス工場 ⇒ 製鉄所\n設置後は座標を同盟チャットで共有！")
-
-    with tab3:
-        with st.expander("1. 🐻 熊狩り"):
-            st.code("🚩集結主：一番強い英雄で！\n🚩乗る人：左英雄ジェシー等。兵士割合は弓多め（盾2槍2弓6など）🏹")
-        with st.expander("2. ⚔️ 兵器工場 / 峡谷合戦"):
-            st.markdown("- **志願した方は当日絶対参加！**\n- 欠員が出るとみんなが苦労するので念押し。")
-        with st.expander("3. 🛡️ キルイベ / 王国ルール"):
-            st.markdown("- 都市攻撃は「同盟未加入」を3回確認してから。\n- シールド推奨（引きこもり）も一つの戦略！")
-
-# --- 管理者画面（修正版） ---
 def admin_page():
-    st.header("🛠️ 管理者・履歴設定")
-    db = load_db()
+    st.title("🛠️ 管理者画面：マニュアルの加筆修正")
+    manual_data = load_manual()
 
-    # 1. 履歴管理
-    with st.expander("🕒 過去のデータに復元"):
-        backups = sorted(glob.glob(os.path.join(BACKUP_DIR, "*.json")), reverse=True)
-        if backups:
-            selected = st.selectbox("戻したい日時を選択", backups, format_func=lambda x: os.path.basename(x))
-            if st.button("選んだデータで復元する"):
-                with open(selected, 'r', encoding='utf-8') as f:
-                    restored_db = json.load(f)
-                save_db(restored_db)
-                st.success("復元完了！再読み込みしてね。")
-                st.rerun()
+    # 1. 修正したいセクションを選択
+    section = st.selectbox("修正する項目を選んでね", list(manual_data.keys()))
 
-    # 2. イベント編集
-    with st.expander("📝 登録済みイベントの修正"):
-        event_name = st.selectbox("修正するイベント", list(db.keys()))
-        if event_name:
-            sched = db[event_name].get("スケジュール", {})
-            df = pd.DataFrame.from_dict(sched, orient='index').transpose()
-            edited_df = st.data_editor(df, num_rows="dynamic")
-            
-            if st.button("この内容で保存"):
-                # DataFrameからNoneを省いて辞書に戻す
-                new_sched = {col: [v for v in edited_df[col].tolist() if pd.notna(v) and v != ""] for col in edited_df.columns}
-                db[event_name]["スケジュール"] = new_sched
-                save_db(db)
-                st.success(f"{event_name} を更新したよ！✨")
+    # 2. テキストエリアで中身を編集
+    # ※ heightを大きくすることで、ワードのような感覚で編集できます
+    new_content = st.text_area(f"「{section}」の内容を編集", 
+                               value=manual_data[section], 
+                               height=400)
 
-# --- メインルーチン ---
-st.sidebar.title("ʕ·ᴥ·ʔ MMC Menu")
-menu = st.sidebar.radio("メニュー", ["ツール起動✨", "運営マニュアル📜", "管理者設定🛠️"])
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("保存する✨"):
+            manual_data[section] = new_content
+            save_manual(manual_data)
+            st.success("マニュアルを更新したよ！😊")
+            st.rerun()
 
-if menu == "ツール起動✨":
-    # (ここには以前の案内文生成ロジックを入れてください)
-    st.title("✨ 案内文自動生成")
-    st.write("イベントを選択して、案内文を作ろう！")
-elif menu == "運営マニュアル📜":
-    manual_page()
+    # 3. 履歴復元機能（マニュアル用）
+    st.divider()
+    st.subheader("🕒 過去のマニュアルに戻す")
+    backups = sorted(glob.glob(os.path.join(BACKUP_DIR, "*.json")), reverse=True)
+    if backups:
+        selected_backup = st.selectbox("バックアップを選択", backups)
+        if st.button("この版を復元する"):
+            with open(selected_backup, 'r', encoding='utf-8') as f:
+                restored = json.load(f)
+            save_manual(restored)
+            st.success("マニュアルを過去の状態に戻したよ！")
+            st.rerun()
+
+# --- メインメニュー ---
+menu = st.sidebar.radio("メニュー", ["マニュアル閲覧📜", "管理者設定🛠️"])
+
+if menu == "マニュアル閲覧📜":
+    manual_view_page()
 elif menu == "管理者設定🛠️":
     admin_page()
