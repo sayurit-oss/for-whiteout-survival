@@ -6,10 +6,10 @@ import os
 # --- ファイルパス設定 ---
 DB_FILE = 'event_database.json'
 EXCEL_FILE = 'イベント一覧.xlsx'
-OTHER_EXCEL = 'その他イベント一覧.xlsx'  # 追記
+OTHER_EXCEL = 'その他イベント一覧.xlsx'
 
 def load_excel_to_db(db):
-    """エクセルからデータを読み込んでDBを更新する"""
+    """エクセルからメインイベントデータを読み込んでDBを更新する"""
     if os.path.exists(EXCEL_FILE):
         try:
             xls = pd.ExcelFile(EXCEL_FILE)
@@ -21,21 +21,23 @@ def load_excel_to_db(db):
                     active_items = df[df[col].isin(['〇', '◎', '○'])]['項目名'].tolist()
                     schedule[str(col)] = active_items
                 db[sheet_name] = {"スケジュール": schedule}
-            return db, "エクセルから最新データを読み込んだよ！✨"
+            return db, "メインイベント一覧を読み込んだよ！✨"
         except Exception as e:
-            return db, f"エクセル読み込みでエラーが出ちゃった💦: {e}"
-    return db, "エクセルファイルが見つからなかったよ。JSONデータを使うね。😊"
+            return db, f"エクセル読み込みエラー💦: {e}"
+    return db, "JSONデータを使用中😊"
 
-# --- 追記：報酬型イベントの読み込み関数 ---
 def load_other_events():
+    """「その他イベント一覧」から報酬型イベントをカテゴリー別に読み込む"""
     others = {}
     if os.path.exists(OTHER_EXCEL):
         try:
-            df_others = pd.read_excel(OTHER_EXCEL)
-            for cat in df_others['カテゴリー'].unique():
-                others[cat] = df_others[df_others['カテゴリー'] == cat]['イベント名'].tolist()
-        except:
-            pass
+            # エクセル全体を読み込み、空行を削除
+            df_others = pd.read_excel(OTHER_EXCEL).dropna(subset=['カテゴリ', 'イベント名'])
+            # カテゴリごとにリスト化
+            for cat in df_others['カテゴリ'].unique():
+                others[cat] = df_others[df_others['カテゴリ'] == cat]['イベント名'].tolist()
+        except Exception as e:
+            st.error(f"報酬型イベントの読み込みに失敗しました: {e}")
     return others
 
 def load_db():
@@ -57,7 +59,7 @@ db, init_msg = load_db()
 st.title("🛡️ 盟主業務サポート：明太もちメーカー")
 st.toast(init_msg)
 
-mode = st.sidebar.radio("やりたいことを選んでね♪", ["案内文を自動で作る✨", "新イベントを教え込む📝"])
+mode = st.sidebar.radio("メニュー", ["案内文を自動で作る✨", "新イベントを教え込む📝"])
 
 if mode == "新イベントを教え込む📝":
     st.header("📝 期間限定イベントを覚えさせる")
@@ -73,76 +75,84 @@ if mode == "新イベントを教え込む📝":
             if new_name:
                 db[new_name] = {"スケジュール": new_sched}
                 save_db(db)
-                st.success(f"『{new_name}』を保存したよ！")
+                st.success(f"『{new_name}』を保存しました！")
             else:
-                st.error("イベント名を入れてね💦")
+                st.error("名前を入力してください")
 
 else:
     st.header("✨ 今日の案内文を自動生成")
     if not db:
-        st.warning("イベントデータが空っぽだよ。")
+        st.warning("メインイベントのデータが見つかりません。")
     else:
-        col1, col2 = st.columns(2)
-        with col1:
-            active_events = st.multiselect("今日のメインイベントを選択", list(db.keys()))
+        # --- レイアウト：左側（今日）と右側（未来） ---
+        col_today, col_future = st.columns(2)
+        
+        with col_today:
+            st.subheader("📍 今日のメインイベント")
+            active_events = st.multiselect("イベントを選択", list(db.keys()), key="main_select")
             event_days = {}
             for ev in active_events:
-                event_days[ev] = st.selectbox(f"【{ev}】は何日目？", list(db[ev]["スケジュール"].keys()), key=f"select_{ev}")
+                event_days[ev] = st.selectbox(f"【{ev}】は何日目？", list(db[ev]["スケジュール"].keys()), key=f"day_sel_{ev}")
 
-        with col2:
+        with col_future:
+            st.subheader("🔮 4日後までの予定")
             future_events = []
-            for i in range(1, 3): # 温存アドバイス用に2日後まで確認
-                f = st.selectbox(f"{i}日後の予定", ["特になし"] + list(db.keys()), key=f"f{i}")
+            # ホワサバ仕様に合わせて4日後まで入力可能に
+            for i in range(1, 5):
+                f = st.selectbox(f"{i}日後", ["特になし"] + list(db.keys()), key=f"future_{i}")
                 future_events.append(f)
 
-        # --- 追記：報酬型イベント（その他）の選択UI ---
+        # --- 報酬型イベント（その他イベント一覧） ---
         st.divider()
         st.subheader("🎁 報酬型イベント（リマインド）")
         others_dict = load_other_events()
         selected_others = []
-        if others_dict:
+
+        if not others_dict:
+            st.info("「その他イベント一覧.xlsx」を読み込むと、ここに選択肢が表示されます。")
+        else:
             cols = st.columns(len(others_dict))
             for i, (cat, items) in enumerate(others_dict.items()):
                 with cols[i]:
-                    picked = st.multiselect(cat, items, key=f"other_{cat}")
+                    picked = st.multiselect(cat, items, key=f"other_pick_{cat}")
                     selected_others.extend(picked)
 
-        # --- 案内文生成ボタン ---
+        # --- 生成ボタン ---
         if st.button("案内文をポチッと生成！🚀"):
             today_points = []
             for ev, day in event_days.items():
                 today_points.extend(db[ev]["スケジュール"][day])
             
-            # 重複判定
             doubled_points = list(set([x for x in today_points if today_points.count(x) > 1]))
             
-            # 温存判定
+            # 温存アドバイス（4日後までスキャン）
             caution_msg = ""
             for i, f_ev in enumerate(future_events):
                 if f_ev != "特になし":
+                    # 未来のイベントの1日目のポイントと今日を比較
                     f_points = db[f_ev]["スケジュール"].get("1日目", [])
                     matches = [p for p in f_points if p in today_points]
                     if matches:
                         caution_msg = f"\n⚠️**温存推奨アイテム**⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
                         break
 
-            # --- 出力フォーマット（シンプル版） ---
+            # --- フォーマット構築 ---
             output = "【今日のスケジュール】\n"
             idx = 1
-            # メインイベント
+            # メイン
             for ev, day in event_days.items():
                 output += f"{idx}．{ev}（{day}）\n"
                 idx += 1
-            # 報酬型イベント
+            # 報酬型
             for o_ev in selected_others:
                 output += f"{idx}．{o_ev}\n"
                 idx += 1
             
-            # おすすめアイテム
+            # 重複（おすすめ）
             if doubled_points:
                 output += f"\n🔥**おすすめアイテム**🔥\n{', '.join(doubled_points)}\n（イベント間で重複）\n"
             
-            # 温存アドバイス
+            # 温存
             output += caution_msg
             
-            st.text_area("案内文（コピー用）", output, height=300)
+            st.text_area("案内文（コピー用）", output, height=350)
