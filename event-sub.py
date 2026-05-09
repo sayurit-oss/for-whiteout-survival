@@ -80,7 +80,7 @@ if mode == "新イベントを教え込む📝":
                 st.error("名前を入力してください")
 
 else:
-    st.header("✨ 今日の案内文を自動生成")
+
     if not db:
         st.warning("メインイベントのデータが見つかりません。")
     else:
