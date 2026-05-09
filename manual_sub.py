@@ -3,7 +3,7 @@ import json
 import os
 
 # --- ファイル設定 ---
-MANUAL_FILE = 'manual_flexible_structure.json'
+MANUAL_FILE = 'manual_structure.json'
 
 def load_manual_data():
     if os.path.exists(MANUAL_FILE):
