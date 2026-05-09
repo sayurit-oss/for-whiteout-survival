@@ -84,7 +84,7 @@ app_mode = st.sidebar.radio(
 
 # --- 1. スケジュール作成画面 ---
 if app_mode == "スケジュールを自動で作る✨":
-    st.title("🛡️ スケジュールメーカー")
+    st.title("📅 スケジュールメーカー")
     if not db:
         st.warning("メインイベントのデータが見つかりません。")
     else:
