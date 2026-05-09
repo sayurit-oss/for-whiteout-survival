@@ -103,25 +103,23 @@ if mode == "新イベントを教え込む📝":
             # 修正ポイント2: セレクトボックスの選択肢と保存される列名を一致させる
             new_other_cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "その他イベント"])
             
-            # 修正後の保存部分の抜粋
             if st.form_submit_button("報酬型リストに追加！🚀"):
                 if new_other_name:
-                    try:
+                    try:  # 👈 ここから try が始まっています
                         if os.path.exists(OTHER_EXCEL):
                             df_o = pd.read_excel(OTHER_EXCEL)
                         else:
-                # 列名を「カテゴリー」で作成
                             df_o = pd.DataFrame(columns=['カテゴリー', 'イベント名'])
-            
-            # 新しい行を追加（列名を合わせる）
+                        
                         new_row = pd.DataFrame([{'カテゴリー': new_other_cat, 'イベント名': new_other_name}])
                         df_o = pd.concat([df_o, new_row], ignore_index=True)
-            
+                        
                         df_o.to_excel(OTHER_EXCEL, index=False)
                         st.success(f"追加完了！✨")
                         st.rerun()
+                    except Exception as e:  # 👈 これが必要です！
                         st.error(f"保存に失敗したよ💦: {e}")
-                else:
+                else:  # 👈 この else は try-except の外側（if new_other_name に対して）のもの
                     st.error("イベント名を入れてね！")
 
 else:
