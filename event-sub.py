@@ -136,12 +136,12 @@ else:
                         caution_msg = f"\n⚠️**温存推奨アイテム**⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
                         break
 
-            # --- フォーマット構築 ---
+# --- フォーマット構築 ---
             output = "【今日のスケジュール】\n"
             idx = 1
             # メイン
             for ev, day in event_days.items():
-                output += f"{idx}．{ev}（{day}）\n"
+                output += f"{idx}．{ev}（{day}）\n" [cite: 13, 14]
                 idx += 1
             # 報酬型
             for o_ev in selected_others:
@@ -150,9 +150,14 @@ else:
             
             # 重複（おすすめ）
             if doubled_points:
-                output += f"\n🔥**おすすめアイテム**🔥\n{', '.join(doubled_points)}\n（イベント間で重複）\n"
+                output += f"\n🔥**おすすめアイテム**🔥\n{', '.join(doubled_points)}\n（イベント間で重複）\n" [cite: 14]
             
             # 温存
-            output += caution_msg
+            output += caution_msg [cite: 14]
             
-            st.text_area("案内文（コピー用）", output, height=350)
+            # --- 改善：コピーボタン付きの出力表示 ---
+            st.write("---")
+            st.subheader("📋 生成された案内文")
+            st.caption("右上のボタンを押すとコピーできます😊")
+            # st.code を使うことで自動的にコピーボタンが付与されます
+            st.code(output, language=None)
