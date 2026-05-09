@@ -67,6 +67,11 @@ def save_db(db):
 st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
 db, init_msg = load_db()
 
+# --- 💡 修正箇所：初回だけトーストを表示する ---
+if "first_load" not in st.session_state:
+    st.toast(init_msg)
+    st.session_state["first_load"] = True # 「表示済み」のフラグを立てる
+
 # --- サイドバーメニュー (ここをラジオボタンに変更) ---
 st.sidebar.title("🛡️ MMC管理メニュー")
 # プルダウンをやめて、直接並べる形式に
