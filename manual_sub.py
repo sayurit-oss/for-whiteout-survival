@@ -18,7 +18,6 @@ def save_custom_data(data):
 # --- 2. マニュアル閲覧画面 ---
 def manual_view_page():
     st.title("📜 MMC 運営マニュアル")
-    st.info("「親しみやすさ × メリハリ」楽しく、正しく、勝つ！")
     
     # カスタムデータの読み込み
     custom_data = load_custom_data()
@@ -373,7 +372,7 @@ def admin_page():
 
 # --- メインメニュー ---
 st.sidebar.title("ʕ·ᴥ·ʔ MMC Menu")
-menu = st.sidebar.radio("メニュー", ["マニュアル閲覧📜", "管理者設定🛠️"])
+menu = st.sidebar.radio("メニュー", ["マニュアル閲覧📜", "マニュアル追記🛠️"])
 
 if menu == "マニュアル閲覧📜":
     manual_view_page()
