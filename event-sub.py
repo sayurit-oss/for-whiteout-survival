@@ -53,13 +53,13 @@ def save_db(db):
         json.dump(db, f, ensure_ascii=False, indent=4)
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="明太もちメーカー", page_icon="🛡️")
+st.set_page_config(page_title="スケジュールメーカー", page_icon="🛡️")
 db, init_msg = load_db()
 
-st.title("🛡️ 盟主業務サポート：明太もちメーカー")
+st.title("🛡️ スケジュールメーカー")
 st.toast(init_msg)
 
-mode = st.sidebar.radio("メニュー", ["案内文を自動で作る✨", "新イベントを教え込む📝"])
+mode = st.sidebar.radio("メニュー", ["スケジュールを自動で作る✨", "新イベントを教え込む📝"])
 
 if mode == "新イベントを教え込む📝":
     st.header("📝 期間限定イベントを覚えさせる")
@@ -88,7 +88,7 @@ else:
         col_today, col_future = st.columns(2)
         
         with col_today:
-            st.subheader("📍 今日のメインイベント")
+            st.subheader("📍 ランキングイベント")
             active_events = st.multiselect("イベントを選択", list(db.keys()), key="main_select")
             event_days = {}
             for ev in active_events:
@@ -104,7 +104,7 @@ else:
 
         # --- 報酬型イベント（その他イベント一覧） ---
         st.divider()
-        st.subheader("🎁 報酬型イベント（リマインド）")
+        st.subheader("🎁 報酬型イベント")
         others_dict = load_other_events()
         selected_others = []
 
@@ -139,7 +139,7 @@ else:
                     f_points = db[f_ev]["スケジュール"].get("1日目", [])
                     matches = [p for p in f_points if p in today_points]
                     if matches:
-                        caution_msg = f"\n⚠️**温存推奨アイテム**⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
+                        caution_msg = f"\n⚠️温存推奨アイテム⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
                         break
 
             # 3. シンプル版フォーマットの構築
@@ -160,7 +160,7 @@ else:
             
             # おすすめアイテム（重複）
             if doubled_points:
-                output += f"\n🔥**おすすめアイテム**🔥\n{', '.join(doubled_points)}\n（イベント間で重複）\n"
+                output += f"\n🔥おすすめアイテム🔥\n{', '.join(doubled_points)}\n（イベント間で重複）\n"
             
             # 温存アドバイス
             output += caution_msg
