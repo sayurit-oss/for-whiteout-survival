@@ -3,17 +3,17 @@ import json
 import os
 
 # --- ファイル設定 ---
-MANUAL_FILE = 'manual_structure.json'
+MANUAL_FILE = 'manual_flexible_structure.json'
 
 def load_manual_data():
     if os.path.exists(MANUAL_FILE):
         with open(MANUAL_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    # 初期データ（ファイルがない時用）
+    # 初期データ構造
     return {
-        "👥 メンバー管理": [{"title": "1. 新規加入の審査基準", "content": "ここに内容を書く"}],
-        "🚩 領土・資源": [{"title": "1. ルート作成", "content": "ここに内容を書く"}],
-        "⚔️ イベント攻略": [{"title": "1. 熊狩り", "content": "ここに内容を書く"}]
+        "👥 メンバー管理": [],
+        "🚩 領土・資源": [],
+        "⚔️ イベント攻略": []
     }
 
 def save_manual_data(data):
@@ -25,58 +25,75 @@ def manual_view_page():
     st.title("📜 MMC同盟 運営バイブル")
     data = load_manual_data()
 
-    # タブは固定
     tabs = st.tabs(list(data.keys()))
 
-    for i, (category, items) in enumerate(data.items()):
+    for i, (category, expanders) in enumerate(data.items()):
         with tabs[i]:
-            for item in items:
-                # 登録されている数だけ自動でexpander（折り畳み）を作成
-                with st.expander(item['title']):
-                    # 内容が「コピペ用」っぽければ自動でst.codeにする判定も可能ですが、
-                    # 基本はmarkdownで表示。コードを書きたい場合は管理画面で工夫。
-                    st.markdown(item['content'])
+            for exp in expanders:
+                with st.expander(exp['title']):
+                    # 折り畳みの中にある各ブロックを順番に表示
+                    for block in exp.get('blocks', []):
+                        if block['type'] == 'text':
+                            st.markdown(block['content'])
+                        elif block['type'] == 'code':
+                            st.code(block['content'], language=None)
 
-# --- 2. 管理者画面（ここが重要！） ---
+# --- 2. 管理者画面 ---
 def admin_page():
-    st.title("🛠️ マニュアル構造の編集")
+    st.title("🛠️ マニュアル高度編集モード")
     data = load_manual_data()
 
     category = st.selectbox("編集するカテゴリ", list(data.keys()))
     
-    st.subheader(f"「{category}」内の折り畳み一覧")
+    # 1. 折り畳み（Expander）自体の管理
+    expanders = data[category]
     
-    items = data[category]
-    new_items = []
-
-    # 既存の折り畳みをループで表示して編集
-    for i, item in enumerate(items):
+    for e_idx, exp in enumerate(expanders):
         with st.container(border=True):
-            col1, col2 = st.columns([3, 1])
+            col1, col2 = st.columns([4, 1])
             with col1:
-                t = st.text_input(f"タイトル {i+1}", value=item['title'], key=f"t_{category}_{i}")
-                c = st.text_area(f"本文 {i+1}", value=item['content'], key=f"c_{category}_{i}", height=200)
+                exp['title'] = st.text_input(f"折り畳みのタイトル", value=exp['title'], key=f"et_{category}_{e_idx}")
             with col2:
-                # 削除ボタン
-                delete = st.checkbox("削除する", key=f"d_{category}_{i}")
+                if st.button("🗑️ この折り畳みごと削除", key=f"edel_{category}_{e_idx}"):
+                    expanders.pop(e_idx)
+                    save_manual_data(data)
+                    st.rerun()
+
+            # --- 折り畳みの中身（ブロック）の編集 ---
+            st.write("📖 中身の構成パーツ")
+            for b_idx, block in enumerate(exp.get('blocks', [])):
+                col_type, col_content, col_btn = st.columns([1, 4, 1])
+                with col_type:
+                    block['type'] = st.selectbox("種類", ["text", "code"], 
+                                                 index=0 if block['type'] == 'text' else 1,
+                                                 key=f"bt_{category}_{e_idx}_{b_idx}")
+                with col_content:
+                    label = "文章を入力" if block['type'] == 'text' else "コピペ用文章を入力"
+                    block['content'] = st.text_area(label, value=block['content'], 
+                                                    key=f"bc_{category}_{e_idx}_{b_idx}", height=100)
+                with col_btn:
+                    if st.button("❌", key=f"bdel_{category}_{e_idx}_{b_idx}"):
+                        exp['blocks'].pop(b_idx)
+                        save_manual_data(data)
+                        st.rerun()
             
-            if not delete:
-                new_items.append({"title": t, "content": c})
+            if st.button("➕ パーツを追加（文章 or コピペ）", key=f"badd_{category}_{e_idx}"):
+                if 'blocks' not in exp: exp['blocks'] = []
+                exp['blocks'].append({"type": "text", "content": ""})
+                save_manual_data(data)
+                st.rerun()
 
-    # 新しい折り畳みの追加
-    if st.button("➕ 新しい折り畳みを追加"):
-        new_items.append({"title": "新しい見出し", "content": "ここに本文を入力"})
-        data[category] = new_items
+    st.divider()
+    if st.button("✨ 新しい折り畳みを追加"):
+        expanders.append({"title": "新規見出し", "blocks": [{"type": "text", "content": ""}]})
         save_manual_data(data)
         st.rerun()
 
-    if st.button("💾 全ての変更を保存する"):
-        data[category] = new_items
+    if st.button("💾 すべてを保存して反映"):
         save_manual_data(data)
-        st.success("マニュアルを更新しました！")
-        st.rerun()
+        st.success("最新の状態に更新しました！")
 
-# --- メイン制御 ---
+# --- メインメニュー ---
 menu = st.sidebar.radio("メニュー", ["マニュアル閲覧📜", "管理者設定🛠️"])
 if menu == "マニュアル閲覧📜":
     manual_view_page()
