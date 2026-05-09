@@ -95,32 +95,42 @@ if mode == "新イベントを教え込む📝":
                 else:
                     st.error("イベント名を入れてね💦")
 
-    with edit_tab2:
+with edit_tab2:
         st.subheader("🎁 報酬型イベントの追加")
         
         with st.form("add_other_event"):
             new_other_name = st.text_input("イベント名（例：兵器工場エントリー）")
-            # 修正ポイント2: セレクトボックスの選択肢と保存される列名を一致させる
+            # 選択肢を「カテゴリー」で統一
             new_other_cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "その他イベント"])
             
             if st.form_submit_button("報酬型リストに追加！🚀"):
                 if new_other_name:
-                    try:  # 👈 ここから try が始まっています
+                    try:
+                        # 1. 既存ファイルの読み込み試行
                         if os.path.exists(OTHER_EXCEL):
                             df_o = pd.read_excel(OTHER_EXCEL)
+                            # 💡 読み込み時に列名の揺れを「カテゴリー」に統一 
+                            df_o.columns = ['カテゴリー' if 'カテゴリ' in str(c) else c for c in df_o.columns]
                         else:
+                            # ファイルがない場合は新規作成
                             df_o = pd.DataFrame(columns=['カテゴリー', 'イベント名'])
                         
+                        # 2. 新しい行の作成と結合
                         new_row = pd.DataFrame([{'カテゴリー': new_other_cat, 'イベント名': new_other_name}])
                         df_o = pd.concat([df_o, new_row], ignore_index=True)
                         
+                        # 3. エクセルへ保存（列名は「カテゴリー」で固定） [cite: 5]
                         df_o.to_excel(OTHER_EXCEL, index=False)
-                        st.success(f"追加完了！✨")
+                        
+                        st.success(f"『{new_other_name}』を「{new_other_cat}」に追加したよ！✨")
+                        # 画面を更新して即座に反映させる [cite: 7]
                         st.rerun()
-                    except Exception as e:  # 👈 これが必要です！
-                        st.error(f"保存に失敗したよ💦: {e}")
-                else:  # 👈 この else は try-except の外側（if new_other_name に対して）のもの
-                    st.error("イベント名を入れてね！")
+                        
+                    except Exception as e:
+                        # tryに対応するexceptブロックを確実に配置
+                        st.error(f"保存中にエラーが発生しました: {e}")
+                else:
+                    st.error("イベント名を入力してください！")
 
 else:
     if not db:
