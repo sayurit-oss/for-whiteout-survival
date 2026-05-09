@@ -30,10 +30,24 @@ def load_other_events():
     others = {}
     if os.path.exists(OTHER_EXCEL):
         try:
-            # 修正ポイント1: 列名の不一致を解消（'カテゴリー'に統一）
-            df_others = pd.read_excel(OTHER_EXCEL).dropna(subset=['カテゴリー', 'イベント名'])
-            for cat in df_others['カテゴリー'].unique():
-                others[cat] = df_others[df_others['カテゴリー'] == cat]['イベント名'].tolist()
+            # エクセルを読み込む
+            df_others = pd.read_excel(OTHER_EXCEL)
+            
+            # 列名の「揺れ」を吸収する（カテゴリ or カテゴリー）
+            # すべての列名から「カテゴリー」に近いものを探して統一する
+            df_others.columns = [
+                'カテゴリー' if 'カテゴリ' in str(c) else c for c in df_others.columns
+            ]
+            
+            # 必要な列が揃っているか確認して、空行を削除
+            if 'カテゴリー' in df_others.columns and 'イベント名' in df_others.columns:
+                df_others = df_others.dropna(subset=['カテゴリー', 'イベント名'])
+                # カテゴリごとにリスト化
+                for cat in df_others['カテゴリー'].unique():
+                    others[cat] = df_others[df_others['カテゴリー'] == cat]['イベント名'].tolist()
+            else:
+                st.error(f"エクセルの列名を確認してください。現在の列名: {list(df_others.columns)}")
+                
         except Exception as e:
             st.error(f"報酬型イベントの読み込みに失敗しました: {e}")
     return others
