@@ -95,7 +95,7 @@ if mode == "新イベントを教え込む📝":
         
         with st.form("add_other_event"):
             new_other_name = st.text_input("イベント名（例：兵器工場エントリー）")
-            new_other_cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "期間限定"])
+            new_other_cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "その他イベント"])
             
             if st.form_submit_button("報酬型リストに追加！🚀"):
                 if new_other_name:
