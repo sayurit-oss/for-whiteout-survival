@@ -33,8 +33,8 @@ def load_other_events():
             # エクセルを読み込む
             df_others = pd.read_excel(OTHER_EXCEL)
             
-            # 列名の「揺れ」を吸収する（カテゴリ or カテゴリー）
-            # すべての列名から「カテゴリー」に近いものを探して統一する
+            # 💡 修正ポイント：列名の「揺れ」を吸収する
+            # 「カテゴリ」でも「カテゴリー」でも、強制的に「カテゴリー」に統一します
             df_others.columns = [
                 'カテゴリー' if 'カテゴリ' in str(c) else c for c in df_others.columns
             ]
