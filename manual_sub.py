@@ -93,4 +93,59 @@ def manual_view_page():
         with st.expander("2. パズル進行用「兵1旗」"):
             st.markdown("""
             - 旗の開始は必ず「兵士1名・英雄なし」。
-            - 完了(
+            - 完了(100%)したら即解体して同じ場所に再設置のループ。
+            """)
+            st.code("パズル用の旗なので、兵士1・英雄なしでお願いします😊\n一旦送還しますね。", language=None)
+
+        with st.expander("3. 同盟安全採集ポイントの設置"):
+            st.markdown("""
+            建設 ⇒ 同盟領地 ⇒ 特殊建築 ⇒ 同盟安全採集ポイント
+            設置後は座標を同盟チャットで共有！
+            """)
+
+    # --- タブ3: イベント攻略 ---
+    with tab3:
+        if extra_data.get("⚔️ イベント攻略"):
+            st.info(extra_data["⚔️ イベント攻略"])
+            st.divider()
+
+        with st.expander("1. 熊狩り"):
+            st.code("""🐻今日は熊狩り🐻
+【時間】 くま2 21:00〜 / くま1 22:00〜
+🚩集結主：1番強い英雄で！
+🚩乗る人：左ジェシー等。弓多め（盾2槍2弓6など）🏹""", language=None)
+
+        with st.expander("2. 兵器工場 / 峡谷合戦"):
+            st.markdown("- 事前登録：軍団1(23時)、軍団2(21時)など。")
+            st.code("志願した方は当日絶対参加！欠員が出るとみんな苦労します…💦", language=None)
+
+        with st.expander("3. 同盟争覇戦"):
+            st.markdown("- 7:59までに真ん中エントリー。その後R4でルート振り分け。")
+
+        with st.expander("4. 城砦・要塞戦"):
+            st.markdown("- 初手は「集結」のみ！ソロ突撃禁止。ランキング順に報酬分配。")
+
+# --- 3. 管理画面 ---
+def admin_page():
+    st.title("🛠️ マニュアル補足事項の編集")
+    extra_data = load_extra()
+
+    category = st.selectbox("編集するカテゴリ", list(extra_data.keys()))
+    
+    st.write(f"### 「{category}」の冒頭に表示するメッセージ")
+    new_text = st.text_area("ここに入力した内容は、各タブの最初に表示されます。", 
+                            value=extra_data[category], height=150)
+
+    if st.button("💾 保存して反映"):
+        extra_data[category] = new_text
+        save_extra(extra_data)
+        st.success("更新しました！マニュアル閲覧メニューを確認してください。")
+
+# --- メイン制御 ---
+st.sidebar.title("ʕ·ᴥ·ʔ MMC Menu")
+menu = st.sidebar.radio("メニュー", ["マニュアル閲覧📜", "管理者設定🛠️"])
+
+if menu == "マニュアル閲覧📜":
+    manual_view_page()
+else:
+    admin_page()
