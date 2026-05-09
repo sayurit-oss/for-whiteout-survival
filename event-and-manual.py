@@ -123,7 +123,7 @@ if app_mode == "スケジュールを自動で作る✨":
                     f_points = db[f_ev]["スケジュール"].get("1日目", [])
                     matches = [p for p in f_points if p in today_points]
                     if matches:
-                        caution_msg = f"\n⚠️**温存推奨アイテム**⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
+                        caution_msg = f"\n⚠️温存推奨アイテム⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
                         break
 
             output = "【今日のスケジュール】\n"
@@ -136,7 +136,7 @@ if app_mode == "スケジュールを自動で作る✨":
                 output += f"{idx}．{o_ev}\n"
                 idx += 1
             if doubled:
-                output += f"\n🔥**おすすめアイテム**🔥\n{', '.join(doubled)}\n（イベント間で重複）\n"
+                output += f"\n🔥おすすめアイテム🔥\n{', '.join(doubled)}\n（イベント間で重複）\n"
             output += caution_msg
             st.divider()
             st.subheader("📋 生成された案内文")
