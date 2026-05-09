@@ -61,23 +61,63 @@ st.toast(init_msg)
 
 mode = st.sidebar.radio("メニュー", ["スケジュールを自動で作る✨", "新イベントを教え込む📝"])
 
+# --- モード1：新イベント登録（手動） ---
 if mode == "新イベントを教え込む📝":
     st.header("📝 期間限定イベントを覚えさせる")
-    with st.form("add_event"):
-        new_name = st.text_input("イベント名")
-        days = st.slider("開催日数", 1, 7, 3)
-        all_items = ["火晶建築", "領主装備", "領主宝石", "訓練昇格", "英雄欠片", "各種加速", "採集", "ペット", "ダイヤ", "専門家", "専装エナ", "ミスリル", "ルーレット", "鍵", "獣"]
-        new_sched = {}
-        for d in range(1, days + 1):
-            selected = st.multiselect(f"{d}日目のポイント項目", all_items, key=f"day_{d}")
-            new_sched[f"{d}日目"] = selected
-        if st.form_submit_button("サーバーに保存！✨"):
-            if new_name:
-                db[new_name] = {"スケジュール": new_sched}
-                save_db(db)
-                st.success(f"『{new_name}』を保存しました！")
-            else:
-                st.error("名前を入力してください")
+    
+    # タブで「ランキング型」と「報酬型」を切り替えられるようにします
+    edit_tab1, edit_tab2 = st.tabs(["🏆 ランキング型（ポイント系）", "🎁 報酬型（リマインド系）"])
+    
+    with edit_tab1:
+        st.info("※恒常イベントはエクセルを編集して保存するだけでOKだよ！😊")
+        with st.form("add_event"):
+            new_name = st.text_input("イベント名")
+            days = st.slider("開催日数", 1, 7, 3)
+            all_items = ["火晶建築", "領主装備", "領主宝石", "訓練昇格", "英雄欠片", "各種加速", "採集", "ペット", "ダイヤ", "専門家", "専装エナ", "ミスリル", "ルーレット", "鍵", "獣"]
+            
+            new_sched = {}
+            for d in range(1, days + 1):
+                selected = st.multiselect(f"{d}日目のポイント項目", all_items, key=f"day_{d}")
+                new_sched[f"{d}日目"] = selected
+                
+            if st.form_submit_button("サーバーに保存！✨"):
+                if new_name:
+                    db[new_name] = {"スケジュール": new_sched}
+                    save_db(db)
+                    st.success(f"『{new_name}』を保存したよ！案内文作成で選べるようになったよ〜🎶")
+                else:
+                    st.error("イベント名を入れてね💦")
+
+    with edit_tab2:
+        st.subheader("🎁 報酬型イベントの追加")
+        # 現在の「その他イベント」を読み込む
+        others_data = load_other_events()
+        
+        with st.form("add_other_event"):
+            new_other_name = st.text_input("イベント名（例：兵器工場エントリー）")
+            new_other_cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "期間限定"])
+            
+            if st.form_submit_button("報酬型リストに追加！🚀"):
+                if new_other_name:
+                    # エクセルを読み込んで追記する処理
+                    try:
+                        if os.path.exists(OTHER_EXCEL):
+                            df_o = pd.read_excel(OTHER_EXCEL)
+                        else:
+                            df_o = pd.DataFrame(columns=['カテゴリー', 'イベント名'])
+                        
+                        # 新しい行を追加
+                        new_row = pd.DataFrame([{'カテゴリー': new_other_cat, 'イベント名': new_other_name}])
+                        df_o = pd.concat([df_o, new_row], ignore_index=True)
+                        
+                        # エクセルへ保存
+                        df_o.to_excel(OTHER_EXCEL, index=False)
+                        st.success(f"『{new_other_name}』を「{new_other_cat}」に追加したよ！✨")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"保存に失敗したよ💦: {e}")
+                else:
+                    st.error("イベント名を入れてね！")
 
 else:
 
