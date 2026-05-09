@@ -2,110 +2,109 @@ import streamlit as st
 import json
 import os
 
-# --- ファイル設定 ---
-MANUAL_FILE = 'manual_flexible_structure.json'
+# --- 1. 管理画面から編集するデータの読み書き ---
+MANUAL_EXT_FILE = 'manual_extra.json'
 
-def load_manual_data():
-    if os.path.exists(MANUAL_FILE):
-        with open(MANUAL_FILE, 'r', encoding='utf-8') as f:
+def load_extra():
+    if os.path.exists(MANUAL_EXT_FILE):
+        with open(MANUAL_EXT_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    # 初期データ構造
-    return {
-        "👥 メンバー管理": [],
-        "🚩 領土・資源": [],
-        "⚔️ イベント攻略": []
-    }
+    return {"👥 メンバー管理": "", "🚩 領土・資源": "", "⚔️ イベント攻略": ""}
 
-def save_manual_data(data):
-    with open(MANUAL_FILE, 'w', encoding='utf-8') as f:
+def save_extra(data):
+    with open(MANUAL_EXT_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 1. マニュアル閲覧画面 ---
+# --- 2. マニュアル閲覧画面（ご提示のコード ＋ 追加機能エリア） ---
 def manual_view_page():
     st.title("📜 MMC同盟 運営バイブル")
-    data = load_manual_data()
+    st.info("「親しみやすさ × メリハリ」楽しく、正しく、勝つ！")
+    
+    # 追加情報の読み込み
+    extra_data = load_extra()
 
-    tabs = st.tabs(list(data.keys()))
+    tab1, tab2, tab3 = st.tabs(["👥 メンバー管理", "🚩 領土・資源", "⚔️ イベント攻略"])
 
-    for i, (category, expanders) in enumerate(data.items()):
-        with tabs[i]:
-            for exp in expanders:
-                with st.expander(exp['title']):
-                    # 折り畳みの中にある各ブロックを順番に表示
-                    for block in exp.get('blocks', []):
-                        if block['type'] == 'text':
-                            st.markdown(block['content'])
-                        elif block['type'] == 'code':
-                            st.code(block['content'], language=None)
+    with tab1:
+        # 🌟 管理画面から追加したテキストがここに出ます
+        if extra_data.get("👥 メンバー管理"):
+            st.warning(extra_data["👥 メンバー管理"])
+            st.divider()
 
-# --- 2. 管理者画面 ---
+        with st.expander("1. 新規加入の審査基準"):
+            st.markdown("""申請一覧を確認し、以下の条件を**すべて**満たす場合のみ承認します。  
+            - **炉レベル**: 25以上  
+            - **総力**: 3000万以上  
+            - **名前**: 初期ネーム以外  
+            - **⚠️ IDチェック**: 74始まりに注意！スパイの可能性があるため、承認前に個別メッセージで挨拶を送り、意思疎通（日本語が通じるか等）ができるか慎重に確認する。""")
+
+        with st.expander("2. 入会後のランクアップ（R1 ➡ R3）"):
+            st.markdown("""新メンバーが入会したら、以下のステップをガイドし、完了を確認したらR3へ昇格させます。  
+            - **フレンド登録**: 盟主（R5）へフレンド申請を送るよう指示する。  
+            - **移転**: 同盟本部の周辺へ移転してもらう。  
+            - **ランクアップ**: 上記2点が確認できたら、R1からR3へ手動で変更する。  
+            - **同盟マークの案内**: 名前の後ろに同盟マークをつけてもらうようにうながす。""")
+            st.code("""よかったら、名前の後ろに「ʕ·ᴥ·ʔᴹᴹᶜ」をつけて、MMCの仲間だよってアピールいただけないでしょうか。
+【付け方】  
+左上アイコンタッチ
+⇒名前の変更  
+同盟ショップで、改名カードの割引があったら買ってから、おねがいします😊""", language=None)
+            st.code("""ʕ·ᴥ·ʔᴹᴹᶜ""", language=None)
+
+        with st.expander("3. 非アクティブ者の整理"):
+            st.markdown("""同盟の枠を確保し、アクティブ率を維持するための運用です。  
+            **【基本ルール】** 長期未ログインにより自動（または手動）で**R2に降格したメンバー**が対象。  
+            **【退会処置の手順】** - 対象者のプロフィールから最終ログイン時間を確認。  
+            - 個別メールを送信。    
+            - メール送信後、同盟から追放（退会）処理。""")
+            st.code("""お疲れ様です。長期未ログインのため、一旦同盟を離脱していただく形となります。
+また戻られた際には、再度申請してくださいね～😊 歓迎します！""", language=None)
+
+        # (以下、規律管理やホワイトリストなどの expander を同様に配置)
+
+    with tab2:
+        # 🌟 領土・資源の追加情報エリア
+        if extra_data.get("🚩 領土・資源"):
+            st.info(extra_data["🚩 領土・資源"])
+            st.divider()
+
+        with st.expander("1. ルート作成と旗建設"):
+            st.markdown("""領土は「最短距離」かつ「最大効率」で広げるのが基本です。  
+            **【基本ルートの考え方】**:  
+            - マップ上の同盟資源地を目指して、最短ルートで旗を伸ばします。  
+            - イベント対象となる施設（ステーション、砦等）に隣接させるようにルートを設計します。  
+            **【効率化のテクニック】**:  
+            - 山や川などの通行不能エリアを避け、旗の消費数を最小限に抑えます。  
+            - 外交上のNAP（不戦条約）に基づき、他同盟も旗を跨げるように、ジグザグにルートを引きます。""")
+        
+        # (以下、兵1旗や採集ポイントの expander を配置)
+
+    with tab3:
+        # 🌟 イベント攻略の追加情報エリア
+        if extra_data.get("⚔️ イベント攻略"):
+            st.success(extra_data["⚔️ イベント攻略"])
+            st.divider()
+
+        with st.expander("1. 熊狩り"):
+            st.markdown("""クマで参加者全員のポイントを伸ばすための考え方です。  
+            - 基本的には罠の近くに集結主がいた方がいいです。  
+            - 罠強化を忘れないようにアナウンスしましょう。""")
+            st.code("""🐻今日は熊狩り🐻 ... (略)""", language=None)
+
+        # (以下、各種イベントの expander を配置)
+
+# --- 3. 追加機能のための管理画面 ---
 def admin_page():
-    st.title("🛠️ マニュアル高度編集モード")
-    data = load_manual_data()
+    st.title("🛠️ マニュアル補足事項の編集")
+    extra_data = load_extra()
 
-    category = st.selectbox("編集するカテゴリ", list(data.keys()))
+    category = st.selectbox("編集するカテゴリ", list(extra_data.keys()))
     
-    # 1. 折り畳み（Expander）自体の管理
-    expanders = data[category]
-    
-    for e_idx, exp in enumerate(expanders):
-        with st.container(border=True):
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                exp['title'] = st.text_input(f"折り畳みのタイトル", value=exp['title'], key=f"et_{category}_{e_idx}")
-            with col2:
-                if st.button("🗑️ この折り畳みごと削除", key=f"edel_{category}_{e_idx}"):
-                    expanders.pop(e_idx)
-                    save_manual_data(data)
-                    st.rerun()
+    st.write(f"### 「{category}」の冒頭に表示するメッセージ")
+    new_text = st.text_area("ここに入力した内容は、マニュアルの各タブの最初に表示されます。", 
+                            value=extra_data[category], height=150)
 
-            # --- 折り畳みの中身（ブロック）の編集 ---
-            st.write("📖 中身の構成パーツ")
-            for b_idx, block in enumerate(exp.get('blocks', [])):
-                col_type, col_content, col_btn = st.columns([1, 4, 1])
-                with col_type:
-                    block['type'] = st.selectbox("種類", ["text", "code"], 
-                                                 index=0 if block['type'] == 'text' else 1,
-                                                 key=f"bt_{category}_{e_idx}_{b_idx}")
-                with col_content:
-                    label = "文章を入力" if block['type'] == 'text' else "コピペ用文章を入力"
-                    block['content'] = st.text_area(label, value=block['content'], 
-                                                    key=f"bc_{category}_{e_idx}_{b_idx}", height=100)
-                with col_btn:
-                    if st.button("❌", key=f"bdel_{category}_{e_idx}_{b_idx}"):
-                        exp['blocks'].pop(b_idx)
-                        save_manual_data(data)
-                        st.rerun()
-            
-            if st.button("➕ パーツを追加（文章 or コピペ）", key=f"badd_{category}_{e_idx}"):
-                if 'blocks' not in exp: exp['blocks'] = []
-                exp['blocks'].append({"type": "text", "content": ""})
-                save_manual_data(data)
-                st.rerun()
-
-    st.divider()
-    if st.button("✨ 新しい折り畳みを追加"):
-        expanders.append({"title": "新規見出し", "blocks": [{"type": "text", "content": ""}]})
-        save_manual_data(data)
-        st.rerun()
-
-    # --- ここから保存＆バックアップ表示の強化 ---
-    if st.button("💾 保存してバックアップ用データを作成"):
-        save_manual_data(data)
-        st.success("最新の状態に更新しました！")
-        
-        st.subheader("⚠️ 重要：GitHub保存用データ")
-        st.warning("クラウドのデータは消える可能性があるため、以下の内容をコピーして manual_flexible_structure.json に貼り付けてください。")
-        
-        # GitHub貼り付け用のJSONを整形して表示
-        backup_json = json.dumps(data, ensure_ascii=False, indent=4)
-        
-        # コピーしやすいように st.code と st.text_area の両方を出します
-        st.code(backup_json, language="json")
-        st.text_area("スマホ用コピー枠（全選択してコピー）", value=backup_json, height=150)
-# --- メインメニュー ---
-menu = st.sidebar.radio("メニュー", ["マニュアル閲覧📜", "管理者設定🛠️"])
-if menu == "マニュアル閲覧📜":
-    manual_view_page()
-else:
-    admin_page()
+    if st.button("💾 保存して反映"):
+        extra_data[category] = new_text
+        save_extra(extra_data)
+        st.success("更新しました！マニュアル画面を確認してください。")
