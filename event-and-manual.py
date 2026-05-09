@@ -38,11 +38,14 @@ def load_excel_to_db(db):
     return db, "JSONデータを使用中😊"
 
 def load_other_events():
+    """報酬型イベントをカテゴリー別に読み込む（揺れに強く修正）"""
     others = {}
     if os.path.exists(OTHER_EXCEL):
         try:
             df_others = pd.read_excel(OTHER_EXCEL)
+            # 列名の揺れを強制吸収
             df_others.columns = ['カテゴリー' if 'カテゴリ' in str(c) else c for c in df_others.columns]
+            
             if 'カテゴリー' in df_others.columns and 'イベント名' in df_others.columns:
                 df_others = df_others.dropna(subset=['カテゴリー', 'イベント名'])
                 for cat in df_others['カテゴリー'].unique():
@@ -109,6 +112,8 @@ if app_mode == "スケジュールを自動で作る✨":
             for i, (cat, items) in enumerate(others_dict.items()):
                 with cols[i]:
                     selected_others.extend(st.multiselect(cat, items, key=f"p_{cat}"))
+        else:
+            st.info("報酬型イベントがまだ登録されていません。")
 
         if st.button("案内文をポチッと生成！🚀"):
             today_points = []
@@ -116,7 +121,6 @@ if app_mode == "スケジュールを自動で作る✨":
                 today_points.extend(db[ev]["スケジュール"].get(event_days[ev], []))
             doubled = list(set([x for x in today_points if today_points.count(x) > 1]))
             
-            # 温存アドバイスの判定
             caution_msg = ""
             for i, f_ev in enumerate(future_events):
                 if f_ev != "特になし" and f_ev in db:
@@ -126,26 +130,20 @@ if app_mode == "スケジュールを自動で作る✨":
                         caution_msg = f"\n⚠️**温存推奨アイテム**⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
                         break
 
-            # 📋 テキスト構築
             output = "【今日のスケジュール】\n"
             idx = 1
-            # メインイベント（〇日目あり）
             for ev in active_events:
                 day = event_days.get(ev)
                 output += f"{idx}．{ev}（{day}）\n"
                 idx += 1
-            # 報酬型イベント
             for o_ev in selected_others:
                 output += f"{idx}．{o_ev}\n"
                 idx += 1
             
-            # おすすめアイテム
             if doubled:
                 output += f"\n🔥**おすすめアイテム**🔥\n{', '.join(doubled)}\n（イベント間で重複）\n"
             
-            # 💡 修正箇所: 変数名を正確に指定
             output += caution_msg
-            
             st.divider()
             st.subheader("📋 生成された案内文")
             st.caption("右上のボタンをタップしてコピー！")
@@ -155,35 +153,59 @@ if app_mode == "スケジュールを自動で作る✨":
 elif app_mode == "新イベントを教え込む📝":
     st.title("📝 期間限定イベントを覚えさせる")
     tab1, tab2 = st.tabs(["🏆 ランキング型", "🎁 報酬型"])
+    
     with tab1:
-        with st.form("add_event"):
+        st.info("※恒常イベントはエクセルを編集して保存するだけでOKだよ！")
+        # フォームの外で日数を管理することで即時反映させる
+        input_days = st.slider("開催日数", 1, 7, 3, key="ranking_days_slider")
+        
+        with st.form("add_event_form"):
             new_name = st.text_input("イベント名")
-            days = st.slider("開催日数", 1, 7, 3)
             all_items = ["火晶建築", "領主装備", "領主宝石", "訓練昇格", "英雄欠片", "各種加速", "採集", "ペット", "ダイヤ", "専門家", "専装エナ", "ミスリル", "ルーレット", "鍵", "獣"]
-            new_sched = {f"{d}日目": st.multiselect(f"{d}日目", all_items, key=f"new_d_{d}") for d in range(1, days + 1)}
+            
+            new_sched = {}
+            # スライダーで選んだ日数分、確実にループを回す
+            for d in range(1, input_days + 1):
+                new_sched[f"{d}日目"] = st.multiselect(f"{d}日目のポイント項目", all_items, key=f"new_d_input_{d}")
+            
             if st.form_submit_button("サーバーに保存！✨"):
                 if new_name:
                     db[new_name] = {"スケジュール": new_sched}
                     save_db(db)
-                    st.success("保存完了！")
+                    st.success(f"『{new_name}』を保存しました！")
                     st.rerun()
+                else:
+                    st.error("名前を入れてね！")
+
     with tab2:
-        with st.form("add_other_event"):
-            name = st.text_input("イベント名")
+        st.subheader("🎁 報酬型イベントの追加")
+        with st.form("add_other_event_form"):
+            name = st.text_input("イベント名（例：兵器工場エントリー）")
             cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "その他イベント"])
+            
             if st.form_submit_button("報酬型リストに追加！🚀"):
                 if name:
                     try:
-                        df_o = pd.read_excel(OTHER_EXCEL) if os.path.exists(OTHER_EXCEL) else pd.DataFrame(columns=['カテゴリー', 'イベント名'])
-                        df_o.columns = ['カテゴリー' if 'カテゴリ' in str(c) else c for c in df_o.columns]
-                        df_o = pd.concat([df_o, pd.DataFrame([{'カテゴリー': cat, 'イベント名': name}])], ignore_index=True)
+                        # 既存読み込み or 新規作成
+                        if os.path.exists(OTHER_EXCEL):
+                            df_o = pd.read_excel(OTHER_EXCEL)
+                            df_o.columns = ['カテゴリー' if 'カテゴリ' in str(c) else c for c in df_o.columns]
+                        else:
+                            df_o = pd.DataFrame(columns=['カテゴリー', 'イベント名'])
+                        
+                        # データ追加
+                        new_row = pd.DataFrame([{'カテゴリー': cat, 'イベント名': name}])
+                        df_o = pd.concat([df_o, new_row], ignore_index=True)
+                        # 重複削除
+                        df_o = df_o.drop_duplicates()
+                        
                         df_o.to_excel(OTHER_EXCEL, index=False)
-                        st.success("追加完了！")
+                        st.success(f"『{name}』を追加しました！")
                         st.rerun()
                     except Exception as e:
                         st.error(f"保存エラー: {e}")
                 else:
-                    st.error("名前を入力してください")
+                    st.error("イベント名を書いてね！")
 
 # --- 3. マニュアル閲覧画面 ---
 elif app_mode == "運営マニュアル 📜":
@@ -229,4 +251,4 @@ elif app_mode == "マニュアルを編集する ⚙️":
         st.rerun()
     if st.button("💾 すべての変更を確定保存"):
         save_custom_data(data)
-        st.success("マニュアルを更新したよ！")
+        st.success("マニュアルを更新しました！")
