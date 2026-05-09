@@ -9,7 +9,7 @@ EXCEL_FILE = 'イベント一覧.xlsx'
 OTHER_EXCEL = 'その他イベント一覧.xlsx'
 CONFIG_FILE = 'manual_custom_data.json'
 
-# --- 共通関数：データの読み書き ---
+# --- データ読み書き関数 (略さず統合) ---
 def load_custom_data():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -63,48 +63,42 @@ def save_db(db):
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
-# --- ページ1：スケジュールメーカー（event-final） ---
-def schedule_page():
+# --- 共通の初期化 ---
+st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
+db, init_msg = load_db()
+
+# --- サイドバーメニュー (ここをラジオボタンに変更) ---
+st.sidebar.title("🛡️ MMC管理メニュー")
+# プルダウンをやめて、直接並べる形式に
+app_mode = st.sidebar.radio(
+    "メニュー切り替え",
+    [
+        "スケジュールを自動で作る✨", 
+        "新イベントを教え込む📝", 
+        "運営マニュアル 📜", 
+        "マニュアルを編集する ⚙️"
+    ],
+    index=0  # 初期選択をスケジュール作成に設定
+)
+
+# --- 1. スケジュール作成画面 ---
+if app_mode == "スケジュールを自動で作る✨":
     st.title("🛡️ スケジュールメーカー")
-    db, init_msg = load_db()
     st.toast(init_msg)
-
-    mode = st.radio("作業を選んでね", ["スケジュールを自動で作る✨", "新イベントを教え込む📝"], horizontal=True)
-
-    if mode == "新イベントを教え込む📝":
-        st.header("📝 期間限定イベントを覚えさせる")
-        tab1, tab2 = st.tabs(["🏆 ランキング型", "🎁 報酬型"])
-        with tab1:
-            with st.form("add_event"):
-                new_name = st.text_input("イベント名")
-                days = st.slider("開催日数", 1, 7, 3)
-                all_items = ["火晶建築", "領主装備", "領主宝石", "訓練昇格", "英雄欠片", "各種加速", "採集", "ペット", "ダイヤ", "専門家", "専装エナ", "ミスリル", "ルーレット", "鍵", "獣"]
-                new_sched = {f"{d}日目": st.multiselect(f"{d}日目", all_items, key=f"day_{d}") for d in range(1, days + 1)}
-                if st.form_submit_button("保存！✨"):
-                    if new_name:
-                        db[new_name] = {"スケジュール": new_sched}
-                        save_db(db)
-                        st.success("保存したよ！")
-                        st.rerun()
-        with tab2:
-            with st.form("add_other_event"):
-                name = st.text_input("イベント名")
-                cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "その他イベント"])
-                if st.form_submit_button("報酬型リストに追加！🚀"):
-                    df_o = pd.read_excel(OTHER_EXCEL) if os.path.exists(OTHER_EXCEL) else pd.DataFrame(columns=['カテゴリー', 'イベント名'])
-                    df_o = pd.concat([df_o, pd.DataFrame([{'カテゴリー': cat, 'イベント名': name}])], ignore_index=True)
-                    df_o.to_excel(OTHER_EXCEL, index=False)
-                    st.success("追加したよ！")
-                    st.rerun()
+    
+    if not db:
+        st.warning("メインイベントのデータが見つかりません。")
     else:
-        # 自動生成ロジック
         col1, col2 = st.columns(2)
         with col1:
+            st.subheader("📍 ランキングイベント")
             active_events = st.multiselect("イベントを選択", list(db.keys()))
-            event_days = {ev: st.selectbox(f"【{ev}】何日目？", list(db[ev]["スケジュール"].keys())) for ev in active_events}
+            event_days = {ev: st.selectbox(f"【{ev}】は何日目？", list(db[ev]["スケジュール"].keys())) for ev in active_events}
         with col2:
-            future_events = [st.selectbox(f"{i}日後", ["特になし"] + list(db.keys())) for i in range(1, 5)]
+            st.subheader("🔮 4日後までの予定")
+            future_events = [st.selectbox(f"{i}日後", ["特になし"] + list(db.keys()), key=f"f_{i}") for i in range(1, 5)]
 
+        st.divider()
         st.subheader("🎁 報酬型イベント")
         others_dict = load_other_events()
         selected_others = []
@@ -112,10 +106,9 @@ def schedule_page():
             cols = st.columns(len(others_dict))
             for i, (cat, items) in enumerate(others_dict.items()):
                 with cols[i]:
-                    selected_others.extend(st.multiselect(cat, items))
+                    selected_others.extend(st.multiselect(cat, items, key=f"p_{cat}"))
 
         if st.button("案内文をポチッと生成！🚀"):
-            # 判定ロジック
             today_points = []
             for ev in active_events:
                 today_points.extend(db[ev]["スケジュール"].get(event_days[ev], []))
@@ -126,72 +119,88 @@ def schedule_page():
                 if f_ev != "特になし" and f_ev in db:
                     matches = [p for p in db[f_ev]["スケジュール"].get("1日目", []) if p in today_points]
                     if matches:
-                        caution_msg = f"\n⚠️温存推奨⚠️\n{', '.join(matches)}\n({i+1}日後から {f_ev})"
+                        caution_msg = f"\n⚠️温存推奨アイテム⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
                         break
 
             output = "【今日のスケジュール】\n"
             for i, ev in enumerate(active_events + selected_others, 1):
                 suffix = f"（{event_days[ev]}）" if ev in active_events else ""
                 output += f"{i}．{ev}{suffix}\n"
-            if doubled: output += f"\n🔥おすすめ🔥\n{', '.join(doubled)}\n"
+            if doubled: output += f"\n🔥おすすめアイテム🔥\n{', '.join(doubled)}\n（イベント間で重複）\n"
             output += caution_msg
             st.code(output, language=None)
 
-# --- ページ2：運営マニュアル（manual） ---
-def manual_page():
+# --- 2. イベント追加画面 ---
+elif app_mode == "新イベントを教え込む📝":
+    st.title("📝 期間限定イベントを覚えさせる")
+    tab1, tab2 = st.tabs(["🏆 ランキング型", "🎁 報酬型"])
+    with tab1:
+        with st.form("add_event"):
+            new_name = st.text_input("イベント名")
+            days = st.slider("開催日数", 1, 7, 3)
+            all_items = ["火晶建築", "領主装備", "領主宝石", "訓練昇格", "英雄欠片", "各種加速", "採集", "ペット", "ダイヤ", "専門家", "専装エナ", "ミスリル", "ルーレット", "鍵", "獣"]
+            new_sched = {f"{d}日目": st.multiselect(f"{d}日目", all_items, key=f"new_d_{d}") for d in range(1, days + 1)}
+            if st.form_submit_button("サーバーに保存！✨"):
+                if new_name:
+                    db[new_name] = {"スケジュール": new_sched}
+                    save_db(db)
+                    st.success("保存完了！")
+                    st.rerun()
+    with tab2:
+        with st.form("add_other_event"):
+            name = st.text_input("イベント名")
+            cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "その他イベント"])
+            if st.form_submit_button("報酬型リストに追加！🚀"):
+                df_o = pd.read_excel(OTHER_EXCEL) if os.path.exists(OTHER_EXCEL) else pd.DataFrame(columns=['カテゴリー', 'イベント名'])
+                df_o = pd.concat([df_o, pd.DataFrame([{'カテゴリー': cat, 'イベント名': name}])], ignore_index=True)
+                df_o.to_excel(OTHER_EXCEL, index=False)
+                st.success("追加完了！")
+                st.rerun()
+
+# --- 3. マニュアル閲覧画面 ---
+elif app_mode == "運営マニュアル 📜":
     st.title("📜 MMC 運営マニュアル")
     data = load_custom_data()
-    menu = st.sidebar.radio("マニュアル操作", ["閲覧モード", "編集モード"])
+    tabs = st.tabs(list(data.keys()))
+    for i, category in enumerate(data.keys()):
+        with tabs[i]:
+            for exp in data[category]:
+                with st.expander(exp['title']):
+                    for block in exp['blocks']:
+                        if block['type'] == 'text': st.write(block['content'])
+                        else: st.code(block['content'])
 
-    if menu == "閲覧モード":
-        tabs = st.tabs(list(data.keys()))
-        for i, category in enumerate(data.keys()):
-            with tabs[i]:
-                for exp in data[category]:
-                    with st.expander(exp['title']):
-                        for block in exp['blocks']:
-                            if block['type'] == 'text': st.write(block['content'])
-                            else: st.code(block['content'])
-    else:
-        st.info("編集後はページ下部の「保存」を押してね！")
-        category = st.selectbox("カテゴリ選択", list(data.keys()))
-        expanders = data[category]
-        for e_idx, exp in enumerate(expanders):
-            exp['title'] = st.text_input(f"タイトル {e_idx}", exp['title'], key=f"t_{category}_{e_idx}")
+# --- 4. マニュアル編集画面 ---
+elif app_mode == "マニュアルを編集する ⚙️":
+    st.title("⚙️ マニュアル編集モード")
+    data = load_custom_data()
+    category = st.selectbox("編集するカテゴリ", list(data.keys()))
+    expanders = data[category]
+    
+    for e_idx, exp in enumerate(expanders):
+        with st.container(border=True):
+            exp['title'] = st.text_input(f"見出し {e_idx}", exp['title'], key=f"edit_t_{category}_{e_idx}")
             for b_idx, block in enumerate(exp['blocks']):
-                block['type'] = st.selectbox("種類", ["text", "code"], index=0 if block['type'] == 'text' else 1, key=f"ty_{category}_{e_idx}_{b_idx}")
-                block['content'] = st.text_area("内容", block['content'], key=f"c_{category}_{e_idx}_{b_idx}")
-                if st.button("❌ 削除", key=f"del_{category}_{e_idx}_{b_idx}"):
-                    exp['blocks'].pop(b_idx)
-                    save_custom_data(data)
-                    st.rerun()
-            if st.button("➕ パーツ追加", key=f"add_b_{category}_{e_idx}"):
+                c1, c2, c3 = st.columns([1, 4, 0.5])
+                with c1:
+                    block['type'] = st.selectbox("種別", ["text", "code"], index=0 if block['type'] == 'text' else 1, key=f"ty_{category}_{e_idx}_{b_idx}")
+                with c2:
+                    block['content'] = st.text_area("内容", block['content'], key=f"cn_{category}_{e_idx}_{b_idx}")
+                with c3:
+                    if st.button("❌", key=f"del_{category}_{e_idx}_{b_idx}"):
+                        exp['blocks'].pop(b_idx)
+                        save_custom_data(data)
+                        st.rerun()
+            if st.button("➕ パーツ追加", key=f"add_p_{category}_{e_idx}"):
                 exp['blocks'].append({"type": "text", "content": ""})
                 save_custom_data(data)
                 st.rerun()
-        if st.button("✨ 新しい項目を追加"):
-            expanders.append({"title": "新規項目", "blocks": [{"type": "text", "content": ""}]})
-            save_custom_data(data)
-            st.rerun()
-        if st.button("💾 変更をすべて保存"):
-            save_custom_data(data)
-            st.success("保存しました！")
-
-# --- メイン制御 ---
-def main():
-    st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
-
-    # サイドバーの大きなメニュー
-    st.sidebar.title("🛡️ MMC管理メニュー")
-    app_mode = st.sidebar.selectbox(
-        "使いたいアプリを選んでね",
-        ["スケジュールメーカー ✨", "運営マニュアル 📜"]
-    )
-
-    if app_mode == "スケジュールメーカー ✨":
-        schedule_page()
-    else:
-        manual_page()
-
-if __name__ == "__main__":
-    main()
+    
+    st.divider()
+    if st.button("✨ 新しい項目を追加"):
+        expanders.append({"title": "新規項目", "blocks": [{"type": "text", "content": ""}]})
+        save_custom_data(data)
+        st.rerun()
+    if st.button("💾 すべての変更を確定保存"):
+        save_custom_data(data)
+        st.success("マニュアルを更新したよ！")
