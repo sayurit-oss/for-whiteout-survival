@@ -117,18 +117,24 @@ else:
                     picked = st.multiselect(cat, items, key=f"other_pick_{cat}")
                     selected_others.extend(picked)
 
-        # --- 生成ボタン ---
+# --- 生成ボタン ---
         if st.button("案内文をポチッと生成！🚀"):
+            # 1. 今日のポイント項目を収集（安全な取得方法に変更）
             today_points = []
-            for ev, day in event_days.items():
-                today_points.extend(db[ev]["スケジュール"][day])
+            if active_events:
+                for ev in active_events:
+                    # event_daysにデータがあるか確認してから取得
+                    day = event_days.get(ev)
+                    if day and ev in db:
+                        today_points.extend(db[ev]["スケジュール"].get(day, []))
             
+            # 重複項目の抽出
             doubled_points = list(set([x for x in today_points if today_points.count(x) > 1]))
             
-            # 温存アドバイス（4日後までスキャン）
+            # 2. 温存判定（4日後までスキャン）
             caution_msg = ""
             for i, f_ev in enumerate(future_events):
-                if f_ev != "特になし":
+                if f_ev != "特になし" and f_ev in db:
                     # 未来のイベントの1日目のポイントと今日を比較
                     f_points = db[f_ev]["スケジュール"].get("1日目", [])
                     matches = [p for p in f_points if p in today_points]
@@ -136,28 +142,32 @@ else:
                         caution_msg = f"\n⚠️**温存推奨アイテム**⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
                         break
 
-# --- フォーマット構築 ---
+            # 3. シンプル版フォーマットの構築
             output = "【今日のスケジュール】\n"
             idx = 1
-            # メイン
-            for ev, day in event_days.items():
-                output += f"{idx}．{ev}（{day}）\n" [cite: 13, 14]
-                idx += 1
-            # 報酬型
+            
+            # メインイベントの表示
+            for ev in active_events:
+                day = event_days.get(ev)
+                if day:
+                    output += f"{idx}．{ev}（{day}）\n"
+                    idx += 1
+            
+            # 報酬型イベントの表示
             for o_ev in selected_others:
                 output += f"{idx}．{o_ev}\n"
                 idx += 1
             
-            # 重複（おすすめ）
+            # おすすめアイテム（重複）
             if doubled_points:
-                output += f"\n🔥**おすすめアイテム**🔥\n{', '.join(doubled_points)}\n（イベント間で重複）\n" [cite: 14]
+                output += f"\n🔥**おすすめアイテム**🔥\n{', '.join(doubled_points)}\n（イベント間で重複）\n"
             
-            # 温存
-            output += caution_msg [cite: 14]
+            # 温存アドバイス
+            output += caution_msg
             
-            # --- 改善：コピーボタン付きの出力表示 ---
-            st.write("---")
+            # 4. コピーボタン付き出力エリア
+            st.divider()
             st.subheader("📋 生成された案内文")
-            st.caption("右上のボタンを押すとコピーできます😊")
-            # st.code を使うことで自動的にコピーボタンが付与されます
+            st.caption("右上のボタンをタップしてコピー！")
+            # st.code を使うことで標準のコピーボタンが使えます
             st.code(output, language=None)
