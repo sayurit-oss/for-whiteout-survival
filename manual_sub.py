@@ -89,10 +89,20 @@ def admin_page():
         save_manual_data(data)
         st.rerun()
 
-    if st.button("💾 すべてを保存して反映"):
+    # --- ここから保存＆バックアップ表示の強化 ---
+    if st.button("💾 保存してバックアップ用データを作成"):
         save_manual_data(data)
         st.success("最新の状態に更新しました！")
-
+        
+        st.subheader("⚠️ 重要：GitHub保存用データ")
+        st.warning("クラウドのデータは消える可能性があるため、以下の内容をコピーして manual_flexible_structure.json に貼り付けてください。")
+        
+        # GitHub貼り付け用のJSONを整形して表示
+        backup_json = json.dumps(data, ensure_ascii=False, indent=4)
+        
+        # コピーしやすいように st.code と st.text_area の両方を出します
+        st.code(backup_json, language="json")
+        st.text_area("スマホ用コピー枠（全選択してコピー）", value=backup_json, height=150)
 # --- メインメニュー ---
 menu = st.sidebar.radio("メニュー", ["マニュアル閲覧📜", "管理者設定🛠️"])
 if menu == "マニュアル閲覧📜":
