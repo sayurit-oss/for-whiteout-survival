@@ -9,7 +9,6 @@ EXCEL_FILE = 'イベント一覧.xlsx'
 OTHER_EXCEL = 'その他イベント一覧.xlsx'
 
 def load_excel_to_db(db):
-    """エクセルからメインイベントデータを読み込んでDBを更新する"""
     if os.path.exists(EXCEL_FILE):
         try:
             xls = pd.ExcelFile(EXCEL_FILE)
@@ -31,11 +30,10 @@ def load_other_events():
     others = {}
     if os.path.exists(OTHER_EXCEL):
         try:
-            # エクセル全体を読み込み、空行を削除
-            df_others = pd.read_excel(OTHER_EXCEL).dropna(subset=['カテゴリ', 'イベント名'])
-            # カテゴリごとにリスト化
-            for cat in df_others['カテゴリ'].unique():
-                others[cat] = df_others[df_others['カテゴリ'] == cat]['イベント名'].tolist()
+            # 修正ポイント1: 列名の不一致を解消（'カテゴリー'に統一）
+            df_others = pd.read_excel(OTHER_EXCEL).dropna(subset=['カテゴリー', 'イベント名'])
+            for cat in df_others['カテゴリー'].unique():
+                others[cat] = df_others[df_others['カテゴリー'] == cat]['イベント名'].tolist()
         except Exception as e:
             st.error(f"報酬型イベントの読み込みに失敗しました: {e}")
     return others
@@ -61,11 +59,9 @@ st.toast(init_msg)
 
 mode = st.sidebar.radio("メニュー", ["スケジュールを自動で作る✨", "新イベントを教え込む📝"])
 
-# --- モード1：新イベント登録（手動） ---
 if mode == "新イベントを教え込む📝":
     st.header("📝 期間限定イベントを覚えさせる")
     
-    # タブで「ランキング型」と「報酬型」を切り替えられるようにします
     edit_tab1, edit_tab2 = st.tabs(["🏆 ランキング型（ポイント系）", "🎁 報酬型（リマインド系）"])
     
     with edit_tab1:
@@ -90,16 +86,14 @@ if mode == "新イベントを教え込む📝":
 
     with edit_tab2:
         st.subheader("🎁 報酬型イベントの追加")
-        # 現在の「その他イベント」を読み込む
-        others_data = load_other_events()
         
         with st.form("add_other_event"):
             new_other_name = st.text_input("イベント名（例：兵器工場エントリー）")
+            # 修正ポイント2: セレクトボックスの選択肢と保存される列名を一致させる
             new_other_cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "その他イベント"])
             
             if st.form_submit_button("報酬型リストに追加！🚀"):
                 if new_other_name:
-                    # エクセルを読み込んで追記する処理
                     try:
                         if os.path.exists(OTHER_EXCEL):
                             df_o = pd.read_excel(OTHER_EXCEL)
@@ -120,11 +114,9 @@ if mode == "新イベントを教え込む📝":
                     st.error("イベント名を入れてね！")
 
 else:
-
     if not db:
         st.warning("メインイベントのデータが見つかりません。")
     else:
-        # --- レイアウト：左側（今日）と右側（未来） ---
         col_today, col_future = st.columns(2)
         
         with col_today:
@@ -137,19 +129,17 @@ else:
         with col_future:
             st.subheader("🔮 4日後までの予定")
             future_events = []
-            # ホワサバ仕様に合わせて4日後まで入力可能に
             for i in range(1, 5):
                 f = st.selectbox(f"{i}日後", ["特になし"] + list(db.keys()), key=f"future_{i}")
                 future_events.append(f)
 
-        # --- 報酬型イベント（その他イベント一覧） ---
         st.divider()
         st.subheader("🎁 報酬型イベント")
         others_dict = load_other_events()
         selected_others = []
 
         if not others_dict:
-            st.info("「その他イベント一覧.xlsx」を読み込むと、ここに選択肢が表示されます。")
+            st.info("まだ報酬型イベントが登録されていません。「新イベントを教え込む📝」タブから追加してください。")
         else:
             cols = st.columns(len(others_dict))
             for i, (cat, items) in enumerate(others_dict.items()):
@@ -157,57 +147,44 @@ else:
                     picked = st.multiselect(cat, items, key=f"other_pick_{cat}")
                     selected_others.extend(picked)
 
-# --- 生成ボタン ---
         if st.button("案内文をポチッと生成！🚀"):
-            # 1. 今日のポイント項目を収集（安全な取得方法に変更）
             today_points = []
             if active_events:
                 for ev in active_events:
-                    # event_daysにデータがあるか確認してから取得
                     day = event_days.get(ev)
                     if day and ev in db:
                         today_points.extend(db[ev]["スケジュール"].get(day, []))
             
-            # 重複項目の抽出
             doubled_points = list(set([x for x in today_points if today_points.count(x) > 1]))
             
-            # 2. 温存判定（4日後までスキャン）
             caution_msg = ""
             for i, f_ev in enumerate(future_events):
                 if f_ev != "特になし" and f_ev in db:
-                    # 未来のイベントの1日目のポイントと今日を比較
                     f_points = db[f_ev]["スケジュール"].get("1日目", [])
                     matches = [p for p in f_points if p in today_points]
                     if matches:
                         caution_msg = f"\n⚠️温存推奨アイテム⚠️\n{', '.join(matches)}\n（{i+1}日後から {f_ev}）"
                         break
 
-            # 3. シンプル版フォーマットの構築
             output = "【今日のスケジュール】\n"
             idx = 1
             
-            # メインイベントの表示
             for ev in active_events:
                 day = event_days.get(ev)
                 if day:
                     output += f"{idx}．{ev}（{day}）\n"
                     idx += 1
             
-            # 報酬型イベントの表示
             for o_ev in selected_others:
                 output += f"{idx}．{o_ev}\n"
                 idx += 1
             
-            # おすすめアイテム（重複）
             if doubled_points:
                 output += f"\n🔥おすすめアイテム🔥\n{', '.join(doubled_points)}\n（イベント間で重複）\n"
             
-            # 温存アドバイス
             output += caution_msg
             
-            # 4. コピーボタン付き出力エリア
             st.divider()
             st.subheader("📋 生成された案内文")
             st.caption("右上のボタンをタップしてコピー！")
-            # st.code を使うことで標準のコピーボタンが使えます
             st.code(output, language=None)
