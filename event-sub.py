@@ -30,11 +30,9 @@ def load_other_events():
     others = {}
     if os.path.exists(OTHER_EXCEL):
         try:
-            # エクセルを読み込む
             df_others = pd.read_excel(OTHER_EXCEL)
             
-            # 💡 修正ポイント：列名の「揺れ」を吸収する
-            # 「カテゴリ」でも「カテゴリー」でも、強制的に「カテゴリー」に統一します
+            # 💡 修正ポイント：列名の「揺れ」を吸収（カテゴリ or カテゴリー）
             df_others.columns = [
                 'カテゴリー' if 'カテゴリ' in str(c) else c for c in df_others.columns
             ]
@@ -42,14 +40,13 @@ def load_other_events():
             # 必要な列が揃っているか確認して、空行を削除
             if 'カテゴリー' in df_others.columns and 'イベント名' in df_others.columns:
                 df_others = df_others.dropna(subset=['カテゴリー', 'イベント名'])
-                # カテゴリごとにリスト化
                 for cat in df_others['カテゴリー'].unique():
                     others[cat] = df_others[df_others['カテゴリー'] == cat]['イベント名'].tolist()
             else:
-                st.error(f"エクセルの列名を確認してください。現在の列名: {list(df_others.columns)}")
+                st.error(f"列名が違います。現在の列名: {list(df_others.columns)}")
                 
         except Exception as e:
-            st.error(f"報酬型イベントの読み込みに失敗しました: {e}")
+            st.error(f"読み込み失敗: {e}")
     return others
 
 def load_db():
@@ -106,23 +103,23 @@ if mode == "新イベントを教え込む📝":
             # 修正ポイント2: セレクトボックスの選択肢と保存される列名を一致させる
             new_other_cat = st.selectbox("カテゴリー", ["高頻度", "要エントリー", "その他イベント"])
             
+            # 修正後の保存部分の抜粋
             if st.form_submit_button("報酬型リストに追加！🚀"):
                 if new_other_name:
                     try:
                         if os.path.exists(OTHER_EXCEL):
                             df_o = pd.read_excel(OTHER_EXCEL)
                         else:
+                # 列名を「カテゴリー」で作成
                             df_o = pd.DataFrame(columns=['カテゴリー', 'イベント名'])
-                        
-                        # 新しい行を追加
+            
+            # 新しい行を追加（列名を合わせる）
                         new_row = pd.DataFrame([{'カテゴリー': new_other_cat, 'イベント名': new_other_name}])
                         df_o = pd.concat([df_o, new_row], ignore_index=True)
-                        
-                        # エクセルへ保存
+            
                         df_o.to_excel(OTHER_EXCEL, index=False)
-                        st.success(f"『{new_other_name}』を「{new_other_cat}」に追加したよ！✨")
+                        st.success(f"追加完了！✨")
                         st.rerun()
-                    except Exception as e:
                         st.error(f"保存に失敗したよ💦: {e}")
                 else:
                     st.error("イベント名を入れてね！")
