@@ -31,7 +31,11 @@ def load_excel_to_db(db):
                 for col in day_cols:
                     active_items = df[df[col].isin(['〇', '◎', '○'])]['項目名'].tolist()
                     schedule[str(col)] = active_items
+                
+                # 💡 修正ポイント：既存のdb(JSON)を消さずに、エクセル分を追加・更新する
                 db[sheet_name] = {"スケジュール": schedule}
+            
+            # 💡 読み込み完了メッセージを返す
             return db, "最新データを読み込んだよ！✨"
         except Exception as e:
             return db, f"エラー💦: {e}"
@@ -53,9 +57,17 @@ def load_other_events():
 
 def load_db():
     db = {}
+    # 1. まずは保存されたJSON（教え込んだ内容）を読み込む
     if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
-            db = json.load(f)
+        try:
+            with open(DB_FILE, 'r', encoding='utf-8') as f:
+                db = json.load(f)
+        except:
+            db = {}
+            
+    # 2. 次にエクセルの内容を読み込んで、dbに合体させる
+    # これにより、エクセルにあるものは最新に更新され、
+    # エクセルにない（手動で教え込んだ）ものはそのまま残ります。
     db, msg = load_excel_to_db(db)
     return db, msg
 
