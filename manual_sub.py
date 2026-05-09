@@ -16,9 +16,8 @@ def save_custom_data(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 # --- 2. マニュアル閲覧画面 ---
-# --- 2. マニュアル閲覧画面 ---
 def manual_view_page():
-    st.title("📜 MMC同盟 運営バイブル")
+    st.title("📜 MMC 運営マニュアル")
     st.info("「親しみやすさ × メリハリ」楽しく、正しく、勝つ！")
     
     # カスタムデータの読み込み
@@ -226,7 +225,7 @@ def manual_view_page():
             - 各施設に、同盟内で一番「ハコ（集結規模）」と「戦力」がある人を集結主として割り振ります。  
             - 同時間帯に２か所の砦戦がある場合は、事前にメンバーを割り振りましょう。
             - あらかじめ座標を同盟チャットに共有しておきます。  
-            - 早押しが得意なメンバーと二人体制でもいいかもしれません！
+            - 早押しが得意なメンバーと二人体制でもいいかもしれません！  
             **【報酬分配】**:  
             - 砦もしくは要塞の建物をタップすると、貢献ランキングが確認できます。  
             - ランキングに乗っている人に割り振ります。  
@@ -329,7 +328,7 @@ def manual_view_page():
                     else: st.code(block['content'], language=None)
 # --- 3. 管理者画面 ---
 def admin_page():
-    st.title("🛠️ マニュアル構造の編集")
+    st.title("🛠️ マニュアルの追記")
     data = load_custom_data()
     category = st.selectbox("編集するカテゴリ", list(data.keys()))
     expanders = data[category]
@@ -366,10 +365,10 @@ def admin_page():
         save_custom_data(data)
         st.rerun()
 
-    if st.button("💾 保存してバックアップを表示"):
+    if st.button("💾 保存"):
         save_custom_data(data)
-        st.success("一時保存完了！")
-        with st.expander("📥 GitHub保存用データ"):
+        st.success("保存完了！")
+        with st.expander("📥 GitHub保存用データ(管理者用)"):
             st.code(json.dumps(data, ensure_ascii=False, indent=4), language="json")
 
 # --- メインメニュー ---
