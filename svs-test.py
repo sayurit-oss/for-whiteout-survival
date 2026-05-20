@@ -177,7 +177,7 @@ app_mode = st.sidebar.radio(
 
 # --- 1. マニュアル閲覧画面 ---
 if app_mode == "運営マニュアル 📜":
-    st.title("📜 SVSマニュアル")
+    st.title("📜SVSマニュアル")
     st.caption("各フェーズのタブを切り替えて手順を確認してください。")
     
     categories = list(data.keys())
