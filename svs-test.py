@@ -168,7 +168,7 @@ st.set_page_config(page_title="SVS作戦本部マニュアル", page_icon="👑"
 data = load_manual_data()
 
 # --- サイドバーメニュー ---
-st.sidebar.title("👑 SVS作戦本部")
+st.sidebar.title("👑 SVS戦略チーム")
 app_mode = st.sidebar.radio(
     "メニュー切り替え",
     ["運営マニュアル 📜", "マニュアルを編集する ⚙️"],
@@ -177,7 +177,7 @@ app_mode = st.sidebar.radio(
 
 # --- 1. マニュアル閲覧画面 ---
 if app_mode == "運営マニュアル 📜":
-    st.title("📜 SVS 運営マニュアル")
+    st.title("📜 SVSマニュアル")
     st.caption("各フェーズのタブを切り替えて手順を確認してください。")
     
     categories = list(data.keys())
