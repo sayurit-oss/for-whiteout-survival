@@ -1,0 +1,22 @@
+name: Keep Streamlit Apps Alive
+
+env:
+  APP_URL_1: "https://manual-mmc.streamlit.app/"
+  APP_URL_2: "https://manual-3917-svs.streamlit.app/"
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Streamlit Apps
+        run: |
+          echo "Checking App 1..."
+          curl -sI ${{ env.APP_URL_1 }} | head -n 1
+          
+          echo "Checking App 2..."
+          curl -sI ${{ env.APP_URL_2 }} | head -n 1
