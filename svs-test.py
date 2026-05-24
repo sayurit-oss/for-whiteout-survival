@@ -99,7 +99,7 @@ def get_default_manual_data():
                 "title": "メンバーの割り振り決定",
                 "blocks": [
                     {"type": "text", "content": "* 作成したリストと空き枠を照らし合わせ、具体的に誰をどの同盟に移動させるか（エクセル等のリスト）を決定。\n\n* KFC（主砲）へ火晶3のメンバーを優先して集めつつ、MMC（ゴースト）用にも火晶3メンバーを一定数（10〜15名程度）残すなど、戦力バランスを調整。\n\n* なお、KFCに入りきらなかった残りの火晶2や火晶1のメンバーはMMCへ配置。"},
-                    {"type": "file", "path": "past-data/260425 ご協力者のみなさま.xlsx", "label": "📊 過去の編成CSV(26/4/25)"}
+                    {"type": "file", "path": "past-data/260425 ご協力者のみなさま.xlsx", "label": "📊 過去の編成CSV(26/4/25)"},
                     {"type": "file", "path": "past-data/260524 移籍者.xlsx", "label": "📊 過去の編成CSV(26/05/24)"}
                 ]
             }
