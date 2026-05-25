@@ -1,22 +1,28 @@
-name: Keep Streamlit Apps Alive
-
-env:
-  APP_URL_1: "https://manual-mmc.streamlit.app/"
-  APP_URL_2: "https://manual-3917-svs.streamlit.app/"
+name: Keep Streamlit Apps Alive via Commit
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    # 6時間ごとに実行（12時間以内ならいつでもOKですが安全のため）
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
-  ping:
+  dummy_commit:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Streamlit Apps
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Make dummy changes & Push
         run: |
-          echo "Checking App 1..."
-          curl -sI ${{ env.APP_URL_1 }} | head -n 1
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           
-          echo "Checking App 2..."
-          curl -sI ${{ env.APP_URL_2 }} | head -n 1
+          # タイムスタンプをファイルに書き込んで履歴を作る
+          date > keep_alive_trigger.txt
+          
+          git add keep_alive_trigger.txt
+          git commit -m "chore: keep alive trigger [skip ci]" || exit 0
+          git push
