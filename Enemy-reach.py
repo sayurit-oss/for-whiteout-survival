@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 # ページ設定
 st.set_page_config(page_title="ホワサバ敵襲着弾計算", layout="wide")
-st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（基準時刻手動入力版）")
+st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（チャット改行最適化版）")
 
 # ====================================================================
 # ステップ1: 敵の名前と到達時間（行軍時間）の入力
@@ -88,7 +88,7 @@ for enemy_name in ordered_enemies[1:]:
     time_offsets[enemy_name] = offset
 
 # ====================================================================
-# ステップ4: 【修正箇所】情報確認時刻（手動）と、基準の残り集結時間の入力
+# ステップ4: 情報の基準時刻 と 基準敵の残り集結時間の入力
 # ====================================================================
 st.header(f"4. 情報の基準時刻 と 【{base_enemy}】 の残り集結時間")
 
@@ -96,12 +96,9 @@ col_time1, col_time2 = st.columns(2)
 
 with col_time1:
     st.subheader("⏰ 情報の基準時刻")
-    st.caption("例: 19:30時点の情報を入力したい場合は、そのまま「19:30:00」と打ち換えてください。")
-    # 自動入力を廃止し、ユーザーが完全にコントロールできる静的なデフォルト値をセット
     current_time_str = st.text_input("時刻を入力 (HH:MM:SS)", value="19:30:00")
     try:
         parsed_current_time = datetime.strptime(current_time_str, "%H:%M:%S")
-        # 日付は今日の日付をベースにする
         base_datetime = datetime.now().replace(
             hour=parsed_current_time.hour, 
             minute=parsed_current_time.minute, 
@@ -114,7 +111,6 @@ with col_time1:
 
 with col_time2:
     st.subheader(f"⏱️ 【{base_enemy}】の残り集結時間")
-    st.caption(f"上記の基準時刻（例: 19:30）時点で、{base_enemy}の集結が「あと何分何秒だったか」を入力します。")
     base_min = st.number_input(f"{base_enemy} の残り（分）", min_value=0, max_value=60, value=3)
     base_sec = st.number_input(f"{base_enemy} の残り（秒）", min_value=0, max_value=59, value=0)
     base_remaining_total_seconds = (base_min * 60) + base_sec
@@ -128,7 +124,6 @@ for enemy_name in ordered_enemies:
     travel = enemy_travel_times[enemy_name]
     offset = time_offsets[enemy_name]
     actual_remaining_seconds = base_remaining_total_seconds + offset
-    # 入力された基準時刻（例：19:30:00）に残り時間を足して出発時刻を割り出す
     departure_time = base_datetime + timedelta(seconds=actual_remaining_seconds)
     arrival_time = departure_time + timedelta(seconds=travel)
     
@@ -144,16 +139,18 @@ for enemy_name in ordered_enemies:
 calc_results_sorted = sorted(calc_results, key=lambda x: x["arrival"])
 
 # ====================================================================
-# ステップ6: チャット用出力テキスト（到達が早い順）
+# ステップ6: 【修正箇所】チャット用出力テキスト（名前の下で改行）
 # ====================================================================
 st.markdown("---")
-st.header("🎯 チャット用出力テキスト（到達時刻が速い順）")
+st.header("🎯 チャット用出力テキスト（視認性重視）")
+st.caption("名前の下の行に矢印付きで時刻が表示されます。長いプレイヤー名でも改行で崩れません。")
 
+# ご指定のフォーマット通りに組み立て（名前 ➔ 改行 ➔ ⇒時刻）
 chat_text = "【到達時間】\n"
 for res in calc_results_sorted:
-    chat_text += f"{res['name']} : {res['arrival'].strftime('%H時%M分%S秒')}\n"
+    chat_text += f"{res['name']}\n⇒{res['arrival'].strftime('%H時%M分%S秒')}\n"
 
-st.text_area("コピペ用（着弾順）", value=chat_text, height=150)
+st.text_area("コピペ用（着弾順）", value=chat_text, height=200)
 
 # 詳細確認用テーブル
 st.subheader("📊 詳細確認用データ（着弾順）")
