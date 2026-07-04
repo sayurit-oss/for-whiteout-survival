@@ -148,7 +148,7 @@ st.caption("名前の下の行に矢印付きで時刻が表示されます。�
 # ご指定のフォーマット通りに組み立て（名前 ➔ 改行 ➔ ⇒時刻）
 chat_text = "【到達時間】\n"
 for res in calc_results_sorted:
-    chat_text += f"{res['name']}\n⇒{res['arrival'].strftime('%H時%M分%S秒')}\n"
+    chat_text += f"{res['name']}\n　⇒{res['arrival'].strftime('%H時%M分%S秒')}\n"
 
 st.text_area("コピペ用（着弾順）", value=chat_text, height=200)
 
