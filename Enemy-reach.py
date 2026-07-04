@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 # ページ設定
 st.set_page_config(page_title="ホワサバ敵襲着弾計算", layout="wide")
-st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（着弾順ソート版）")
+st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（基準時刻手動入力版）")
 
 # ====================================================================
 # ステップ1: 敵の名前と到達時間（行軍時間）の入力
@@ -11,7 +11,6 @@ st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（着弾順ソート
 st.header("1. 敵プレイヤー名と到達時間（秒）の入力")
 st.caption("名前と到達時間（秒）を入力してください。空欄の行は無視されます。")
 
-# セッション状態の初期化
 if "input_rows" not in st.session_state:
     st.session_state.input_rows = [
         {"name": "敵A", "time": 40},
@@ -20,11 +19,9 @@ if "input_rows" not in st.session_state:
         {"name": "敵D", "time": 50},
     ]
 
-# チェックした順番を記録するためのリスト
 if "click_order" not in st.session_state:
     st.session_state.click_order = []
 
-# 行を追加するボタン
 if st.button("➕ 入力欄を増やす"):
     st.session_state.input_rows.append({"name": "", "time": 0})
 
@@ -47,37 +44,28 @@ if not enemy_travel_times:
 # ステップ2: こちらに向かってきている敵を選択する（チェックボックス・順番記憶）
 # ====================================================================
 st.header("2. 進軍中の敵プレイヤーを選択 【⚠️集結が短い順にチェックしてください】")
-st.caption("ここでチェックを入れた順番の、一番最初の人が自動的に「基準（一番集結が短い人）」になります。")
 
 current_selected = []
 cb_cols = st.columns(min(len(enemy_travel_times), 5))
 
 for i, enemy_name in enumerate(enemy_travel_times.keys()):
     with cb_cols[i % 5]:
-        # チェック状態を監視
         is_checked = st.checkbox(enemy_name, key=f"check_{enemy_name}")
         if is_checked:
             current_selected.append(enemy_name)
 
-# チェックの追加・削除を検知してクリック順リストを更新
 for name in current_selected:
     if name not in st.session_state.click_order:
         st.session_state.click_order.append(name)
 
-# チェックが外された名前はクリック順から削除
 st.session_state.click_order = [name for name in st.session_state.click_order if name in current_selected]
-
-# 実際に有効な選択順
 ordered_enemies = st.session_state.click_order
 
 if not ordered_enemies:
     st.warning("敵を1人以上選択してください。")
     st.stop()
 
-# 現在の選択順を分かりやすく画面に表示
 st.info(f" 選択された順（＝集結が早い順）: {' ➔ '.join(ordered_enemies)}")
-
-# 基準となる敵（一番最初にチェックを入れた人）
 base_enemy = ordered_enemies[0]
 
 # ====================================================================
@@ -100,18 +88,20 @@ for enemy_name in ordered_enemies[1:]:
     time_offsets[enemy_name] = offset
 
 # ====================================================================
-# ステップ4: 現在時刻と、基準の残り集結時間の入力
+# ステップ4: 【修正箇所】情報確認時刻（手動）と、基準の残り集結時間の入力
 # ====================================================================
-st.header(f"4. 現在時刻と 【{base_enemy}】 の残り集結時間")
+st.header(f"4. 情報の基準時刻 と 【{base_enemy}】 の残り集結時間")
 
 col_time1, col_time2 = st.columns(2)
 
 with col_time1:
-    st.subheader("現在時刻")
-    now_time = datetime.now()
-    current_time_str = st.text_input("現在時刻 (HH:MM:SS)", value=now_time.strftime("%H:%M:%S"))
+    st.subheader("⏰ 情報の基準時刻")
+    st.caption("例: 19:30時点の情報を入力したい場合は、そのまま「19:30:00」と打ち換えてください。")
+    # 自動入力を廃止し、ユーザーが完全にコントロールできる静的なデフォルト値をセット
+    current_time_str = st.text_input("時刻を入力 (HH:MM:SS)", value="19:30:00")
     try:
         parsed_current_time = datetime.strptime(current_time_str, "%H:%M:%S")
+        # 日付は今日の日付をベースにする
         base_datetime = datetime.now().replace(
             hour=parsed_current_time.hour, 
             minute=parsed_current_time.minute, 
@@ -119,11 +109,12 @@ with col_time1:
             microsecond=0
         )
     except ValueError:
-        st.error("時刻の形式が正しくありません。半角で 13:40:10 のように入力してください。")
+        st.error("時刻の形式が正しくありません。半角で 19:30:00 のように入力してください。")
         st.stop()
 
 with col_time2:
-    st.subheader(f"【{base_enemy}】の残り集結時間")
+    st.subheader(f"⏱️ 【{base_enemy}】の残り集結時間")
+    st.caption(f"上記の基準時刻（例: 19:30）時点で、{base_enemy}の集結が「あと何分何秒だったか」を入力します。")
     base_min = st.number_input(f"{base_enemy} の残り（分）", min_value=0, max_value=60, value=3)
     base_sec = st.number_input(f"{base_enemy} の残り（秒）", min_value=0, max_value=59, value=0)
     base_remaining_total_seconds = (base_min * 60) + base_sec
@@ -137,6 +128,7 @@ for enemy_name in ordered_enemies:
     travel = enemy_travel_times[enemy_name]
     offset = time_offsets[enemy_name]
     actual_remaining_seconds = base_remaining_total_seconds + offset
+    # 入力された基準時刻（例：19:30:00）に残り時間を足して出発時刻を割り出す
     departure_time = base_datetime + timedelta(seconds=actual_remaining_seconds)
     arrival_time = departure_time + timedelta(seconds=travel)
     
@@ -148,7 +140,7 @@ for enemy_name in ordered_enemies:
         "remaining": actual_remaining_seconds
     })
 
-# 💡【重要】実際にこちらに到達する時刻（arrival）が早い順に並び替える！
+# 到達時刻（arrival）が早い順にソート
 calc_results_sorted = sorted(calc_results, key=lambda x: x["arrival"])
 
 # ====================================================================
@@ -156,9 +148,7 @@ calc_results_sorted = sorted(calc_results, key=lambda x: x["arrival"])
 # ====================================================================
 st.markdown("---")
 st.header("🎯 チャット用出力テキスト（到達時刻が速い順）")
-st.caption("実際に自領地（目的地）に着弾するのが早い順に並んでいます。右上のアイコンからコピーしてください。")
 
-# 到達が早い順にチャットテキストを組み立てる
 chat_text = "【到達時間】\n"
 for res in calc_results_sorted:
     chat_text += f"{res['name']} : {res['arrival'].strftime('%H時%M分%S秒')}\n"
