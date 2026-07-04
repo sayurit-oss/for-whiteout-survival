@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 # ページ設定
 st.set_page_config(page_title="ホワサバ敵襲着弾計算", layout="wide")
-st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（チャットコピペ対応）")
+st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（着弾順ソート版）")
 
 # ====================================================================
 # ステップ1: 敵の名前と到達時間（行軍時間）の入力
@@ -11,7 +11,7 @@ st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（チャットコピ
 st.header("1. 敵プレイヤー名と到達時間（秒）の入力")
 st.caption("名前と到達時間（秒）を入力してください。空欄の行は無視されます。")
 
-# 入力行を動的に管理するための初期データ（例として4行用意、足りなければ増やせます）
+# セッション状態の初期化
 if "input_rows" not in st.session_state:
     st.session_state.input_rows = [
         {"name": "敵A", "time": 40},
@@ -20,11 +20,14 @@ if "input_rows" not in st.session_state:
         {"name": "敵D", "time": 50},
     ]
 
+# チェックした順番を記録するためのリスト
+if "click_order" not in st.session_state:
+    st.session_state.click_order = []
+
 # 行を追加するボタン
 if st.button("➕ 入力欄を増やす"):
     st.session_state.input_rows.append({"name": "", "time": 0})
 
-# テキストボックスの並びを生成
 enemy_travel_times = {}
 for i, row in enumerate(st.session_state.input_rows):
     col_name, col_sec = st.columns([3, 2])
@@ -33,7 +36,6 @@ for i, row in enumerate(st.session_state.input_rows):
     with col_sec:
         time_val = st.number_input(f"到達時間(秒) {i+1}", min_value=0, max_value=600, value=row["time"], key=f"time_input_{i}")
     
-    # 名前が入力されている場合のみ有効なデータとして扱う
     if name_val.strip():
         enemy_travel_times[name_val.strip()] = time_val
 
@@ -42,50 +44,50 @@ if not enemy_travel_times:
     st.stop()
 
 # ====================================================================
-# ステップ2: こちらに向かってきている敵を選択する（チェックボックス）
+# ステップ2: こちらに向かってきている敵を選択する（チェックボックス・順番記憶）
 # ====================================================================
-st.header("2. 進軍中の敵プレイヤーを選択")
-selected_enemies = []
-st.write("今回こちらに向かってきている敵にチェックを入れてください：")
+st.header("2. 進軍中の敵プレイヤーを選択 【⚠️集結が短い順にチェックしてください】")
+st.caption("ここでチェックを入れた順番の、一番最初の人が自動的に「基準（一番集結が短い人）」になります。")
 
-cb_cols = st.columns(min(len(enemy_travel_times), 5)) # 最大5列で並べる
+current_selected = []
+cb_cols = st.columns(min(len(enemy_travel_times), 5))
+
 for i, enemy_name in enumerate(enemy_travel_times.keys()):
     with cb_cols[i % 5]:
-        # デフォルトで入力されているものはチェックを入れておく
-        if st.checkbox(enemy_name, value=True, key=f"check_{enemy_name}"):
-            selected_enemies.append(enemy_name)
+        # チェック状態を監視
+        is_checked = st.checkbox(enemy_name, key=f"check_{enemy_name}")
+        if is_checked:
+            current_selected.append(enemy_name)
 
-if not selected_enemies:
+# チェックの追加・削除を検知してクリック順リストを更新
+for name in current_selected:
+    if name not in st.session_state.click_order:
+        st.session_state.click_order.append(name)
+
+# チェックが外された名前はクリック順から削除
+st.session_state.click_order = [name for name in st.session_state.click_order if name in current_selected]
+
+# 実際に有効な選択順
+ordered_enemies = st.session_state.click_order
+
+if not ordered_enemies:
     st.warning("敵を1人以上選択してください。")
     st.stop()
 
-# ====================================================================
-# ステップ3: 集結時間の残り少ない（早い）順に並び替えるスペース
-# ====================================================================
-st.header("3. 集結残り時間の短い順に並び替え")
-st.caption("集結残り時間が短い順（＝早く出発する順）に、上からカチカチと並び替えてください。")
+# 現在の選択順を分かりやすく画面に表示
+st.info(f" 選択された順（＝集結が早い順）: {' ➔ '.join(ordered_enemies)}")
 
-ordered_enemies = st.multiselect(
-    "選択した敵を【集結が早い順】に指定してください（例：敵D ➔ 敵A ➔ 敵B）",
-    options=selected_enemies,
-    default=selected_enemies # 初期状態では選択された順
-)
-
-if len(ordered_enemies) != len(selected_enemies):
-    st.info("⚠️ 選択した敵がすべて並び替えリストに含まれるように選択してください。")
-    st.stop()
-
-# 基準となる敵（一番集結残り時間が短い人＝リストの先頭）
+# 基準となる敵（一番最初にチェックを入れた人）
 base_enemy = ordered_enemies[0]
 
 # ====================================================================
-# ステップ4: 基準に対して、他の敵がどのくらいズレているか
+# ステップ3: 基準に対して、他の敵がどのくらいズレているか
 # ====================================================================
-st.header(f"4. 時間差の入力（基準: {base_enemy}）")
+st.header(f"3. 時間差の入力（基準: {base_enemy}）")
 st.caption(f"一番集結が早い 【{base_enemy}】 に対して、他の敵の集結残り時間が何秒遅れているかを入力してください。")
 
 time_offsets = {}
-time_offsets[base_enemy] = 0  # 基準は0秒
+time_offsets[base_enemy] = 0
 
 for enemy_name in ordered_enemies[1:]:
     offset = st.number_input(
@@ -98,9 +100,9 @@ for enemy_name in ordered_enemies[1:]:
     time_offsets[enemy_name] = offset
 
 # ====================================================================
-# ステップ5: 現在時刻と、基準の残り集結時間の入力
+# ステップ4: 現在時刻と、基準の残り集結時間の入力
 # ====================================================================
-st.header(f"5. 現在時刻と 【{base_enemy}】 の残り集結時間")
+st.header(f"4. 現在時刻と 【{base_enemy}】 の残り集結時間")
 
 col_time1, col_time2 = st.columns(2)
 
@@ -127,42 +129,50 @@ with col_time2:
     base_remaining_total_seconds = (base_min * 60) + base_sec
 
 # ====================================================================
-# ステップ6: 到達時間（着弾時刻）出力
+# ステップ5: 到達時間（着弾時刻）の計算とソート
+# ====================================================================
+calc_results = []
+
+for enemy_name in ordered_enemies:
+    travel = enemy_travel_times[enemy_name]
+    offset = time_offsets[enemy_name]
+    actual_remaining_seconds = base_remaining_total_seconds + offset
+    departure_time = base_datetime + timedelta(seconds=actual_remaining_seconds)
+    arrival_time = departure_time + timedelta(seconds=travel)
+    
+    calc_results.append({
+        "name": enemy_name,
+        "travel": travel,
+        "departure": departure_time,
+        "arrival": arrival_time,
+        "remaining": actual_remaining_seconds
+    })
+
+# 💡【重要】実際にこちらに到達する時刻（arrival）が早い順に並び替える！
+calc_results_sorted = sorted(calc_results, key=lambda x: x["arrival"])
+
+# ====================================================================
+# ステップ6: チャット用出力テキスト（到達が早い順）
 # ====================================================================
 st.markdown("---")
-st.header("🎯 チャット用出力テキスト")
-st.caption("下の枠内のテキストをコピーして、ゲーム内チャットやDiscordに貼り付けてください。")
+st.header("🎯 チャット用出力テキスト（到達時刻が速い順）")
+st.caption("実際に自領地（目的地）に着弾するのが早い順に並んでいます。右上のアイコンからコピーしてください。")
 
-# チャット用テキストの生成
+# 到達が早い順にチャットテキストを組み立てる
 chat_text = "【到達時間】\n"
+for res in calc_results_sorted:
+    chat_text += f"{res['name']} : {res['arrival'].strftime('%H時%M分%S秒')}\n"
 
-for enemy_name in ordered_enemies:
-    travel = enemy_travel_times[enemy_name]
-    offset = time_offsets[enemy_name]
-    actual_remaining_seconds = base_remaining_total_seconds + offset
-    departure_time = base_datetime + timedelta(seconds=actual_remaining_seconds)
-    arrival_time = departure_time + timedelta(seconds=travel)
-    
-    # テキスト行を追加
-    chat_text += f"{enemy_name} : {arrival_time.strftime('%H時%M分%S秒')}\n"
+st.text_area("コピペ用（着弾順）", value=chat_text, height=150)
 
-# Streamlitのテキストエリア（ここから直接コピーできる）
-st.text_area("コピペ用（右上のアイコンから一発コピーできます）", value=chat_text, height=150)
-
-# 念のため、視認性の高いテーブルも下に残しておきます
-st.subheader("📊 詳細確認用データ")
-result_data = []
-for enemy_name in ordered_enemies:
-    travel = enemy_travel_times[enemy_name]
-    offset = time_offsets[enemy_name]
-    actual_remaining_seconds = base_remaining_total_seconds + offset
-    departure_time = base_datetime + timedelta(seconds=actual_remaining_seconds)
-    arrival_time = departure_time + timedelta(seconds=travel)
-    
-    result_data.append({
-        "敵部隊": enemy_name,
-        "到達時間（行軍）": f"{travel}秒",
-        "🚀 出発（発射）予定": departure_time.strftime("%H:%M:%S"),
-        "🎯 こちらへの到達時刻": arrival_time.strftime("%H:%M:%S")
+# 詳細確認用テーブル
+st.subheader("📊 詳細確認用データ（着弾順）")
+result_table_data = []
+for res in calc_results_sorted:
+    result_table_data.append({
+        "敵部隊": res["name"],
+        "到達時間（行軍）": f"{res['travel']}秒",
+        "🚀 出発（発射）予定": res["departure"].strftime("%H:%M:%S"),
+        "🎯 こちらへの到達時刻": res["arrival"].strftime("%H:%M:%S")
     })
-st.table(result_data)
+st.table(result_table_data)
