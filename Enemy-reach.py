@@ -13,9 +13,9 @@ st.caption("名前と到達時間（秒）を入力してください。")
 
 if "input_rows" not in st.session_state:
     st.session_state.input_rows = [
-        {"name": "敵A", "time": 40},
-        {"name": "敵B", "time": 20},
-        {"name": "敵C", "time": 35}
+        {"name": "", "time": },
+        {"name": "", "time": },
+        {"name": "", "time": }
     ]
 
 if "click_order" not in st.session_state:
