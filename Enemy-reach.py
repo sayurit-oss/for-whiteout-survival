@@ -3,20 +3,19 @@ from datetime import datetime, timedelta
 
 # ページ設定
 st.set_page_config(page_title="ホワサバ敵襲着弾計算", layout="wide")
-st.title("🛡️ ホワサバ 敵部隊 到達時刻計算（チャット改行最適化版）")
+st.title("🛡️ ホワサバ 敵部隊 到達時刻計算")
 
 # ====================================================================
 # ステップ1: 敵の名前と到達時間（行軍時間）の入力
 # ====================================================================
 st.header("1. 敵プレイヤー名と到達時間（秒）の入力")
-st.caption("名前と到達時間（秒）を入力してください。空欄の行は無視されます。")
+st.caption("名前と到達時間（秒）を入力してください。")
 
 if "input_rows" not in st.session_state:
     st.session_state.input_rows = [
         {"name": "敵A", "time": 40},
         {"name": "敵B", "time": 20},
-        {"name": "敵C", "time": 35},
-        {"name": "敵D", "time": 50},
+        {"name": "敵C", "time": 35}
     ]
 
 if "click_order" not in st.session_state:
