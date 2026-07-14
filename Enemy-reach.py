@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 # ページ設定
 st.set_page_config(page_title="さしこみ時間計算", layout="wide")
-st.title("🛡️ ホワサバ 敵部隊 到達時刻計算")
+st.title("🛡️敵部隊王城到達時刻計算")
 
 # ====================================================================
 # ステップ1: 敵の名前と行軍時間の入力
@@ -141,7 +141,7 @@ calc_results_sorted = sorted(calc_results, key=lambda x: x["arrival"])
 # ステップ6: 【変更箇所】チャット用出力テキスト（コピー機能付き）
 # ====================================================================
 st.markdown("---")
-st.header("🎯 チャット用出力テキスト（視認性重視）")
+st.header("🎯 コピペ用出力テキスト")
 st.caption("右上のコピーボタンを押すと、ワンクリックでクリップボードにコピーできます。")
 
 # フォーマット通りに組み立て
@@ -158,8 +158,8 @@ result_table_data = []
 for res in calc_results_sorted:
     result_table_data.append({
         "敵部隊": res["name"],
-        "到達時間（行軍）": f"{res['travel']}秒",
-        "🚀 出発（発射）予定": res["departure"].strftime("%H:%M:%S"),
-        "🎯 こちらへの到達時刻": res["arrival"].strftime("%H:%M:%S")
+        "行軍時間": f"{res['travel']}秒",
+        "🚀 出発予定": res["departure"].strftime("%H:%M:%S"),
+        "🎯 王城への到達時刻": res["arrival"].strftime("%H:%M:%S")
     })
 st.table(result_table_data)
