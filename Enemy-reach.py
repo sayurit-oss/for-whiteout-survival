@@ -2,14 +2,14 @@ import streamlit as st
 from datetime import datetime, timedelta
 
 # ページ設定
-st.set_page_config(page_title="ホワサバ敵襲着弾計算", layout="wide")
+st.set_page_config(page_title="さしこみ時間計算", layout="wide")
 st.title("🛡️ ホワサバ 敵部隊 到達時刻計算")
 
 # ====================================================================
-# ステップ1: 敵の名前と到達時間（行軍時間）の入力
+# ステップ1: 敵の名前と行軍時間の入力
 # ====================================================================
-st.header("1. 敵プレイヤー名と到達時間（秒）の入力")
-st.caption("名前と到達時間（秒）を入力してください。")
+st.header("1. 敵プレイヤー名と行軍時間（秒）の入力")
+st.caption("名前と行軍時間（秒）を入力してください。")
 
 if "input_rows" not in st.session_state:
     st.session_state.input_rows = [
