@@ -89,12 +89,12 @@ for enemy_name in ordered_enemies[1:]:
 # ====================================================================
 # ステップ4: 情報の基準時刻 と 基準敵の残り集結時間の入力
 # ====================================================================
-st.header(f"4. 情報の基準時刻 と 【{base_enemy}】 の残り集結時間")
+st.header(f"4. 時刻 と 【{base_enemy}】 の残り集結時間")
 
 col_time1, col_time2 = st.columns(2)
 
 with col_time1:
-    st.subheader("⏰ 情報の基準時刻")
+    st.subheader("⏰ 時刻")
     current_time_str = st.text_input("時刻を入力 (HH:MM:SS)", value="19:30:00")
     try:
         parsed_current_time = datetime.strptime(current_time_str, "%H:%M:%S")
