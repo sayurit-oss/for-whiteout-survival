@@ -13,9 +13,9 @@ st.caption("名前と行軍時間（秒）を入力してください。")
 
 if "input_rows" not in st.session_state:
     st.session_state.input_rows = [
-        {"name": "A", "time":10 },
-        {"name": "B", "time":20 },
-        {"name": "C", "time":30 }
+        {"name": "A", "time": 10},
+        {"name": "B", "time": 20},
+        {"name": "C", "time": 30}
     ]
 
 if "click_order" not in st.session_state:
@@ -138,18 +138,19 @@ for enemy_name in ordered_enemies:
 calc_results_sorted = sorted(calc_results, key=lambda x: x["arrival"])
 
 # ====================================================================
-# ステップ6: 【修正箇所】チャット用出力テキスト（名前の下で改行）
+# ステップ6: 【変更箇所】チャット用出力テキスト（コピー機能付き）
 # ====================================================================
 st.markdown("---")
 st.header("🎯 チャット用出力テキスト（視認性重視）")
-st.caption("名前の下の行に矢印付きで時刻が表示されます。長いプレイヤー名でも改行で崩れません。")
+st.caption("右上のコピーボタンを押すと、ワンクリックでクリップボードにコピーできます。")
 
-# ご指定のフォーマット通りに組み立て（名前 ➔ 改行 ➔ ⇒時刻）
+# フォーマット通りに組み立て
 chat_text = "【到達時間】\n"
 for res in calc_results_sorted:
-    chat_text += f"{res['name']}\n　⇒{res['arrival'].strftime('%H時%M分%S秒')}\n"
+    chat_text += f"{res['name']}\n ⇒{res['arrival'].strftime('%H時%M分%S秒')}\n"
 
-st.text_area("コピペ用（着弾順）", value=chat_text, height=200)
+# 💡 text_area から code コンポーネントに変更し、コピーボタンを有効化
+st.code(chat_text, language=None)
 
 # 詳細確認用テーブル
 st.subheader("📊 詳細確認用データ（着弾順）")
