@@ -30,7 +30,7 @@ for i, row in enumerate(st.session_state.input_rows):
     with col_name:
         name_val = st.text_input(f"敵の名前 {i+1}", value=row["name"], key=f"name_input_{i}")
     with col_sec:
-        time_val = st.number_input(f"到達時間(秒) {i+1}", min_value=0, max_value=600, value=row["time"], key=f"time_input_{i}")
+        time_val = st.number_input(f"行軍時間(秒) {i+1}", min_value=0, max_value=600, value=row["time"], key=f"time_input_{i}")
     
     if name_val.strip():
         enemy_travel_times[name_val.strip()] = time_val
