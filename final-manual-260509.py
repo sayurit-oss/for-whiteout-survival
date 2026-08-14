@@ -3,12 +3,48 @@ import pandas as pd
 import json
 import os
 import re
+import math
 
 # --- 設定・ファイルパス ---
 DB_FILE = 'event_database.json'
 EXCEL_FILE = 'イベント一覧.xlsx'
 OTHER_EXCEL = 'その他イベント一覧.xlsx'
 CONFIG_FILE = 'manual_custom_data.json'
+
+# --- 座標・行軍シミュレーター設定 ---
+HQ_NAME = "本部"
+HQ_COORD = (732, 418)
+BASE_FORTRESS_COORD = (597, 800)
+BASE_SECONDS = 600.0  # 本部 -> 要塞1号 (600秒)
+
+# 1座標あたりの所要秒数 (速度係数)
+base_dist = math.sqrt((BASE_FORTRESS_COORD[0] - HQ_COORD[0])**2 + (BASE_FORTRESS_COORD[1] - HQ_COORD[1])**2)
+SEC_PER_UNIT = BASE_SECONDS / base_dist
+
+LOCATIONS = {
+    "要塞1号": (597, 800),
+    "要塞2号": (400, 597),
+    "要塞3号": (597, 400),
+    "要塞4号": (800, 597),
+    "砦1号": (237, 828),
+    "砦2号": (237, 606),
+    "砦3号": (237, 348),
+    "砦4号": (366, 237),
+    "砦5号": (588, 237),
+    "砦6号": (846, 237),
+    "砦7号": (957, 348),
+    "砦8号": (957, 606),
+    "砦9号": (957, 828),
+    "砦10号": (846, 957),
+    "砦11号": (606, 957),
+    "砦12号": (366, 957),
+}
+
+def get_travel_time(p1_coord, p2_coord):
+    dist = math.sqrt((p2_coord[0] - p1_coord[0])**2 + (p2_coord[1] - p1_coord[1])**2)
+    sec = dist * SEC_PER_UNIT
+    minutes = round(sec / 60)
+    return minutes, sec
 
 # --- データ読み書き関数 ---
 def load_custom_data():
@@ -71,23 +107,13 @@ def save_db(db):
 def clean_member_name(raw_name: str) -> str:
     if not raw_name:
         return ""
-    
     cleaned = raw_name.strip()
-    
-    # ① 「ʕ」または「·」が含まれている場合、最初に出てきた位置から後ろをすべて削除
     match = re.search(r'[ʕ·]', cleaned)
     if match:
         cleaned = cleaned[:match.start()]
-    
-    # ② 残ったテキストから特殊記号（絵文字や上位文字など）を除去
-    # (ひらがな、カタカナ、漢字、アルファベット、数字、基本記号「。」を残す)
     cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF。]', '', cleaned)
-    
-    # ③ 念のため、末尾に残った同盟タグ (M2C, MMC, MC) を除去
     cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE)
-    
     return cleaned.strip()
-
 
 # --- 共通の初期化 ---
 st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
@@ -101,7 +127,14 @@ if "first_load" not in st.session_state:
 st.sidebar.title("🛡️ MMC管理メニュー")
 app_mode = st.sidebar.radio(
     "メニュー切り替え",
-    ["スケジュールを自動で作る✨", "クレジョイ案内をつくる ✨", "新イベントを教え込む📝", "運営マニュアル 📜", "マニュアルを編集する ⚙️"],
+    [
+        "スケジュールを自動で作る✨", 
+        "クレジョイ案内をつくる ✨", 
+        "要塞・砦 行軍シミュレーター ⚔️", 
+        "新イベントを教え込む📝", 
+        "運営マニュアル 📜", 
+        "マニュアルを編集する ⚙️"
+    ],
     index=0
 )
 
@@ -177,7 +210,6 @@ elif app_mode == "クレジョイ案内をつくる ✨":
     col_main, col_margin = st.columns([10, 1])
     
     with col_main:
-        # --- STEP 1: 画像アップロード ---
         st.subheader("① 画像をアップロード")
         uploaded_file = st.file_uploader("投票メンバーのスクショを選択", type=["png", "jpg", "jpeg"])
 
@@ -185,7 +217,6 @@ elif app_mode == "クレジョイ案内をつくる ✨":
             with st.expander("🖼️ アップロードした画像を確認"):
                 st.image(uploaded_file, use_container_width=True)
             
-            # --- テスト用サンプルデータ (※後日OCR処理に置き換える部分) ---
             sample_ocr_results = [
                 "わからんʕ·ᴥ·ʔM²C", "haruponʕ·ᴥ·ʔMMc", "マンダラʕ·ᴥ·ʔM2C", 
                 "ナーナ", "ハンギョʕ·ᴥ·ʔMC", "愛犬クルʕ·ᴥ·ʔMMC", 
@@ -193,10 +224,8 @@ elif app_mode == "クレジョイ案内をつくる ✨":
                 "雪乃。", "やらかす猫ʕ·ᴥ·ʔMMC", "ゆめゆめʕ·ᴥ·ʔMMC"
             ]
             
-            # 自動クレンジング処理適用
             cleaned_members = [clean_member_name(name) for name in sample_ocr_results if clean_member_name(name)]
             
-            # --- STEP 2: 読み取り結果の確認・修正 ---
             st.subheader("② メンバーの確認・修正")
             members_text = st.text_area(
                 "読み取ったメンバー名 (1行に1人 / 手動修正可)",
@@ -208,17 +237,13 @@ elif app_mode == "クレジョイ案内をつくる ✨":
 
             st.divider()
 
-            # --- STEP 3: 条件設定 ---
             st.subheader("③ 条件の設定")
-            
-            # プルダウンでリーダー選択
             leader_name = st.selectbox("駐屯リーダーを選択", options=member_list)
             
             col_cap, col_own = st.columns(2)
             max_capacity = col_cap.number_input("リーダーの駐屯容量", min_value=0, value=1500000, step=50000)
             leader_troops = col_own.number_input("リーダー出陣兵数", min_value=0, value=250000, step=10000)
 
-            # 兵種比率の選択
             ratio_option = st.radio(
                 "兵種比率 (盾 : 槍 : 弓)",
                 ["7 : 3 : 0", "6 : 4 : 0", "カスタム"],
@@ -237,7 +262,6 @@ elif app_mode == "クレジョイ案内をつくる ✨":
 
             st.divider()
 
-            # --- STEP 4: 計算＆出力 ---
             if st.button("🧮 兵士数を計算する", type="primary", use_container_width=True):
                 other_members = [m for m in member_list if m != leader_name]
                 num_others = len(other_members)
@@ -276,7 +300,106 @@ elif app_mode == "クレジョイ案内をつくる ✨":
                     st.code(copy_text, language="text")
 
 # ==========================================
-# 3. イベント追加画面
+# 3. 要塞・砦 行軍シミュレーター画面（新規追加）
+# ==========================================
+elif app_mode == "要塞・砦 行軍シミュレーター ⚔️":
+    st.title("⚔️ 要塞・砦 行軍時間シミュレーター")
+    st.caption("本部・確定砦・確定要塞からの行軍時間と、前回取得同盟を踏まえた作戦検討テキストを生成します。")
+
+    col_left, col_right = st.columns([1, 1], gap="large")
+
+    all_forts = [f"砦{i}号" for i in range(1, 13)]
+
+    with col_left:
+        st.subheader("1. 確定枠（アンケート等で決定）")
+        
+        # 確定要塞
+        f_cols = st.columns([2, 2, 2])
+        with f_cols[0]:
+            selected_fortress = st.selectbox("確定要塞", ["要塞1号", "要塞2号", "要塞3号", "要塞4号"], index=2)
+        with f_cols[1]:
+            fortress_reward = st.text_input("要塞 報酬", value="ペット突破")
+        with f_cols[2]:
+            fortress_alliance = st.text_input("前回同盟(要塞)", value="KRr")
+            
+        # 確定砦
+        t_cols = st.columns([2, 2, 2])
+        with t_cols[0]:
+            selected_fixed_fort = st.selectbox("確定砦（前回取得など）", all_forts, index=4)
+        with t_cols[1]:
+            fixed_fort_reward = st.text_input("砦 報酬", value="武器経験値")
+        with t_cols[2]:
+            fixed_fort_alliance = st.text_input("前回同盟(砦)", value="MMC")
+
+        st.divider()
+        st.subheader("2. 検討枠（候補の砦 3箇所）")
+        
+        candidate_reward_theme = st.text_input("検討対象の報酬ジャンル", value="1h加速")
+        
+        default_candidates = ["砦2号", "砦6号", "砦10号"]
+        default_alliances = ["JFW", "wan", "Ris"]
+        
+        candidate_data = []
+        for i in range(3):
+            c_cols = st.columns([2, 2])
+            with c_cols[0]:
+                c_name = st.selectbox(f"候補砦 {i+1}", all_forts, index=all_forts.index(default_candidates[i]), key=f"c_name_{i}")
+            with c_cols[1]:
+                c_ally = st.text_input(f"前回同盟 ({c_name})", value=default_alliances[i], key=f"c_ally_{i}")
+            candidate_data.append({"name": c_name, "alliance": c_ally})
+
+    # 計算処理
+    fortress_coord = LOCATIONS[selected_fortress]
+    fixed_fort_coord = LOCATIONS[selected_fixed_fort]
+
+    output_lines = []
+    output_lines.append("【確定】")
+    output_lines.append(f"{selected_fortress.replace('要塞', '')}号要塞：{fortress_reward}({fortress_alliance})")
+    output_lines.append(f"{selected_fixed_fort.replace('砦', '')}号砦：{fixed_fort_reward}({fixed_fort_alliance})")
+    output_lines.append("")
+    output_lines.append("【要検討】")
+    output_lines.append(candidate_reward_theme)
+
+    table_rows = []
+
+    for c in candidate_data:
+        c_coord = LOCATIONS[c["name"]]
+        
+        t_hq, _ = get_travel_time(HQ_COORD, c_coord)
+        t_fixed, _ = get_travel_time(fixed_fort_coord, c_coord)
+        t_fortress, _ = get_travel_time(fortress_coord, c_coord)
+        
+        c_label = c["name"].replace("砦", "")
+        
+        line = f"{c_label}号({t_hq}分)({t_fixed}分)({t_fortress}分)({c['alliance']})"
+        output_lines.append(line)
+        
+        table_rows.append({
+            "候補砦": c["name"],
+            "本部から": f"{t_hq}分",
+            f"{selected_fixed_fort}から": f"{t_fixed}分",
+            f"{selected_fortress}から": f"{t_fortress}分",
+            "前回取得同盟": c["alliance"]
+        })
+
+    output_lines.append("")
+    output_lines.append("(本部からの時間)")
+    output_lines.append(f"({selected_fixed_fort}からの時間)")
+    output_lines.append(f"({selected_fortress}からの時間)")
+    output_lines.append("(前回取得同盟)")
+
+    final_text = "\n".join(output_lines)
+
+    with col_right:
+        st.subheader("3. 比較テーブル")
+        st.dataframe(pd.DataFrame(table_rows), use_container_width=True, hide_index=True)
+        
+        st.subheader("4. 共有用出力テキスト")
+        st.caption("そのままコピーしてチャットやDiscord等に貼り付けできます")
+        st.code(final_text, language=None)
+
+# ==========================================
+# 4. イベント追加画面
 # ==========================================
 elif app_mode == "新イベントを教え込む📝":
     st.title("📝 期間限定イベントを覚えさせる")
@@ -294,7 +417,8 @@ elif app_mode == "新イベントを教え込む📝":
                     save_db(db)
                     st.success(f"『{new_name}』を保存しました！")
                     st.rerun()
-                else: st.error("名前を入れてね！")
+                else: 
+                    st.error("名前を入れてね！")
     with tab2:
         st.subheader("🎁 報酬型イベントの追加")
         with st.form("add_other_event_form"):
@@ -309,11 +433,13 @@ elif app_mode == "新イベントを教え込む📝":
                         df_o.to_excel(OTHER_EXCEL, index=False)
                         st.success(f"『{name}』を追加しました！")
                         st.rerun()
-                    except Exception as e: st.error(f"保存エラー: {e}")
-                else: st.error("イベント名を書いてね！")
+                    except Exception as e: 
+                        st.error(f"保存エラー: {e}")
+                else: 
+                    st.error("イベント名を書いてね！")
 
 # ==========================================
-# 4. マニュアル閲覧画面
+# 5. マニュアル閲覧画面
 # ==========================================
 elif app_mode == "運営マニュアル 📜":
     st.title("📜 MMC 運営マニュアル")
@@ -590,7 +716,7 @@ elif app_mode == "運営マニュアル 📜":
                     else: st.code(block['content'], language=None)
 
 # ==========================================
-# 5. マニュアル編集画面
+# 6. マニュアル編集画面
 # ==========================================
 elif app_mode == "マニュアルを編集する ⚙️":
     st.title("⚙️ マニュアル編集モード")
