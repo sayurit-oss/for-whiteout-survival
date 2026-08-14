@@ -257,7 +257,7 @@ elif app_mode == "クレジョイ案内をつくる ✨":
 
                     copy_text = f"【クレジョイ10&20駐屯】\n"
                     copy_text += f"👑駐屯リーダー: {leader_name}\n\n"
-                    copy_text += f"🛡️ 1人あたりの派遣数\n"
+                    copy_text += f"🌟部隊準備\n"
                     copy_text += f"左英雄: ジェシー\n"
                     copy_text += f"合計: {per_person_total:,}\n"
                     
@@ -269,7 +269,7 @@ elif app_mode == "クレジョイ案内をつくる ✨":
                         copy_text += f"├ 槍兵: {spear_count:,} ({spear_r})\n"
                         copy_text += f"└ 弓兵: {bow_count:,} ({bow_r})\n\n"
                         
-                    copy_text += f"📋 対象メンバー ({num_others}名)\n"
+                    copy_text += f"📋対象メンバー ({num_others}名)\n"
                     copy_text += f"{members_str}"
                     
                     st.success("計算完了！枠内を長押し・タップでコピーできます")
