@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-import re  # 追加: クレジョイのテキストクレンジング用
+import re
 
 # --- 設定・ファイルパス ---
 DB_FILE = 'event_database.json'
@@ -71,10 +71,21 @@ def save_db(db):
 def clean_member_name(raw_name: str) -> str:
     if not raw_name:
         return ""
-    # 特殊記号・絵文字などを除去 (ひらがな、カタカナ、漢字、アルファベット、数字を残す)
-    cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]', '', raw_name)
-    # 末尾の同盟タグを除去
+    
+    cleaned = raw_name.strip()
+    
+    # ① 「ʕ」または「·」が含まれている場合、最初に出てきた位置から後ろをすべて削除
+    match = re.search(r'[ʕ·]', cleaned)
+    if match:
+        cleaned = cleaned[:match.start()]
+    
+    # ② 残ったテキストから特殊記号（絵文字や上位文字など）を除去
+    # (ひらがな、カタカナ、漢字、アルファベット、数字、基本記号「。」を残す)
+    cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF。]', '', cleaned)
+    
+    # ③ 念のため、末尾に残った同盟タグ (M2C, MMC, MC) を除去
     cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE)
+    
     return cleaned.strip()
 
 
@@ -158,12 +169,11 @@ if app_mode == "スケジュールを自動で作る✨":
             st.code(output, language=None)
 
 # ==========================================
-# 1.5 クレジョイ案内をつくる画面 (NEW!)
+# 2. クレジョイ案内をつくる画面
 # ==========================================
-elif app_mode == "クレジョイ案内をつくる 🛡️":
-    st.title("🛡️ クレジョイ10&20駐屯")
+elif app_mode == "クレジョイ案内をつくる ✨":
+    st.title("クレジョイ10&20駐屯")
 
-    # PCなど横幅が広い環境でもスマホのように見やすくするため、表示幅を制限
     col_main, col_margin = st.columns([10, 1])
     
     with col_main:
@@ -184,27 +194,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
             ]
             
             # 自動クレンジング処理適用
-# --- クレジョイ用 テキストクレンジング関数 ---
-def clean_member_name(raw_name: str) -> str:
-    if not raw_name:
-        return ""
-    
-    cleaned = raw_name.strip()
-    
-    # ① 「ʕ」または「·」が含まれている場合、最初に出てきた位置から後ろをすべて削除
-    # （例: "わからんʕ·ᴥ·ʔM²C" -> "わからん"）
-    match = re.search(r'[ʕ·]', cleaned)
-    if match:
-        cleaned = cleaned[:match.start()]
-    
-    # ② 残ったテキストから特殊記号（絵文字や上位文字など）を除去
-    # (ひらがな、カタカナ、漢字、アルファベット、数字、一部の基本記号「。」を残す)
-    cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF。]', '', cleaned)
-    
-    # ③ 念のため、末尾に残った同盟タグ (M2C, MMC, MC) を除去
-    cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE)
-    
-    return cleaned.strip()
+            cleaned_members = [clean_member_name(name) for name in sample_ocr_results if clean_member_name(name)]
             
             # --- STEP 2: 読み取り結果の確認・修正 ---
             st.subheader("② メンバーの確認・修正")
@@ -268,7 +258,7 @@ def clean_member_name(raw_name: str) -> str:
                     copy_text = f"【クレジョイ10&20駐屯】\n"
                     copy_text += f"👑駐屯リーダー: {leader_name}\n\n"
                     copy_text += f"🛡️ 1人あたりの派遣数\n"
-                    copy_text += f"⭐ 左英雄: ジェシー\n"
+                    copy_text += f"左英雄: ジェシー\n"
                     copy_text += f"合計: {per_person_total:,}\n"
                     
                     if bow_r == 0:
@@ -286,7 +276,7 @@ def clean_member_name(raw_name: str) -> str:
                     st.code(copy_text, language="text")
 
 # ==========================================
-# 2. イベント追加画面
+# 3. イベント追加画面
 # ==========================================
 elif app_mode == "新イベントを教え込む📝":
     st.title("📝 期間限定イベントを覚えさせる")
@@ -323,7 +313,7 @@ elif app_mode == "新イベントを教え込む📝":
                 else: st.error("イベント名を書いてね！")
 
 # ==========================================
-# 3. マニュアル閲覧画面
+# 4. マニュアル閲覧画面
 # ==========================================
 elif app_mode == "運営マニュアル 📜":
     st.title("📜 MMC 運営マニュアル")
@@ -600,7 +590,7 @@ elif app_mode == "運営マニュアル 📜":
                     else: st.code(block['content'], language=None)
 
 # ==========================================
-# 4. マニュアル編集画面
+# 5. マニュアル編集画面
 # ==========================================
 elif app_mode == "マニュアルを編集する ⚙️":
     st.title("⚙️ マニュアル編集モード")
