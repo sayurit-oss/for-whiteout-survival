@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import re  # 追加: クレジョイのテキストクレンジング用
 
 # --- 設定・ファイルパス ---
 DB_FILE = 'event_database.json'
@@ -66,6 +67,17 @@ def save_db(db):
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
+# --- クレジョイ用 テキストクレンジング関数 ---
+def clean_member_name(raw_name: str) -> str:
+    if not raw_name:
+        return ""
+    # 特殊記号・絵文字などを除去 (ひらがな、カタカナ、漢字、アルファベット、数字を残す)
+    cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]', '', raw_name)
+    # 末尾の同盟タグを除去
+    cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
 # --- 共通の初期化 ---
 st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
 db, init_msg = load_db()
@@ -78,11 +90,13 @@ if "first_load" not in st.session_state:
 st.sidebar.title("🛡️ MMC管理メニュー")
 app_mode = st.sidebar.radio(
     "メニュー切り替え",
-    ["スケジュールを自動で作る✨", "新イベントを教え込む📝", "運営マニュアル 📜", "マニュアルを編集する ⚙️"],
+    ["スケジュールを自動で作る✨", "クレジョイ案内をつくる 🛡️", "新イベントを教え込む📝", "運営マニュアル 📜", "マニュアルを編集する ⚙️"],
     index=0
 )
 
-# --- 1. スケジュール作成画面 ---
+# ==========================================
+# 1. スケジュール作成画面
+# ==========================================
 if app_mode == "スケジュールを自動で作る✨":
     st.title("📅 スケジュールメーカー")
     if not db:
@@ -143,7 +157,117 @@ if app_mode == "スケジュールを自動で作る✨":
             st.caption("右上のボタンをタップしてコピー！")
             st.code(output, language=None)
 
-# --- 2. イベント追加画面 ---
+# ==========================================
+# 1.5 クレジョイ案内をつくる画面 (NEW!)
+# ==========================================
+elif app_mode == "クレジョイ案内をつくる 🛡️":
+    st.title("🛡️ クレジョイ10&20駐屯")
+
+    # PCなど横幅が広い環境でもスマホのように見やすくするため、表示幅を制限
+    col_main, col_margin = st.columns([10, 1])
+    
+    with col_main:
+        # --- STEP 1: 画像アップロード ---
+        st.subheader("① 画像をアップロード")
+        uploaded_file = st.file_uploader("投票メンバーのスクショを選択", type=["png", "jpg", "jpeg"])
+
+        if uploaded_file is not None:
+            with st.expander("🖼️ アップロードした画像を確認"):
+                st.image(uploaded_file, use_container_width=True)
+            
+            # --- テスト用サンプルデータ (※後日OCR処理に置き換える部分) ---
+            sample_ocr_results = [
+                "わからんʕ·ᴥ·ʔM²C", "haruponʕ·ᴥ·ʔMMc", "マンダラʕ·ᴥ·ʔM2C", 
+                "ナーナ", "ハンギョʕ·ᴥ·ʔMC", "愛犬クルʕ·ᴥ·ʔMMC", 
+                "とりあえずビールʕ·ᴥ·ʔMMC", "わんこʕ·ᴥ·ʔMMC", "れくさすʕ·ᴥ·ʔMMC", 
+                "雪乃。", "やらかす猫ʕ·ᴥ·ʔMMC", "ゆめゆめʕ·ᴥ·ʔMMC"
+            ]
+            
+            # 自動クレンジング処理適用
+            cleaned_members = [clean_member_name(name) for name in sample_ocr_results if clean_member_name(name)]
+            
+            # --- STEP 2: 読み取り結果の確認・修正 ---
+            st.subheader("② メンバーの確認・修正")
+            members_text = st.text_area(
+                "読み取ったメンバー名 (1行に1人 / 手動修正可)",
+                value="\n".join(cleaned_members),
+                height=180
+            )
+            member_list = [m.strip() for m in members_text.split("\n") if m.strip()]
+            st.caption(f"現在の認識人数: **{len(member_list)} 名**")
+
+            st.divider()
+
+            # --- STEP 3: 条件設定 ---
+            st.subheader("③ 条件の設定")
+            
+            # プルダウンでリーダー選択
+            leader_name = st.selectbox("駐屯リーダーを選択", options=member_list)
+            
+            col_cap, col_own = st.columns(2)
+            max_capacity = col_cap.number_input("リーダーの駐屯容量", min_value=0, value=1500000, step=50000)
+            leader_troops = col_own.number_input("リーダー出陣兵数", min_value=0, value=250000, step=10000)
+
+            # 兵種比率の選択
+            ratio_option = st.radio(
+                "兵種比率 (盾 : 槍 : 弓)",
+                ["7 : 3 : 0", "6 : 4 : 0", "カスタム"],
+                horizontal=True
+            )
+
+            if ratio_option == "7 : 3 : 0":
+                shield_r, spear_r, bow_r = 7, 3, 0
+            elif ratio_option == "6 : 4 : 0":
+                shield_r, spear_r, bow_r = 6, 4, 0
+            else:
+                c1, c2, c3 = st.columns(3)
+                shield_r = c1.number_input("盾", 0, 10, 7)
+                spear_r = c2.number_input("槍", 0, 10, 3)
+                bow_r = c3.number_input("弓", 0, 10, 0)
+
+            st.divider()
+
+            # --- STEP 4: 計算＆出力 ---
+            if st.button("🧮 兵士数を計算する", type="primary", use_container_width=True):
+                other_members = [m for m in member_list if m != leader_name]
+                num_others = len(other_members)
+                
+                if num_others == 0:
+                    st.error("メンバーがリーダー1名しかいません。")
+                else:
+                    remaining_space = max_capacity - leader_troops
+                    per_person_total = remaining_space // num_others
+                    
+                    total_ratio = shield_r + spear_r + bow_r
+                    shield_count = int(per_person_total * (shield_r / total_ratio))
+                    spear_count = int(per_person_total * (spear_r / total_ratio))
+                    bow_count = int(per_person_total * (bow_r / total_ratio)) if bow_r > 0 else 0
+
+                    members_str = "、".join(other_members)
+
+                    copy_text = f"【クレジョイ10&20駐屯】\n"
+                    copy_text += f"👑駐屯リーダー: {leader_name}\n\n"
+                    copy_text += f"🛡️ 1人あたりの派遣数\n"
+                    copy_text += f"⭐ 左英雄: ジェシー\n"
+                    copy_text += f"合計: {per_person_total:,}\n"
+                    
+                    if bow_r == 0:
+                        copy_text += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
+                        copy_text += f"└ 槍兵: {spear_count:,} ({spear_r})\n\n"
+                    else:
+                        copy_text += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
+                        copy_text += f"├ 槍兵: {spear_count:,} ({spear_r})\n"
+                        copy_text += f"└ 弓兵: {bow_count:,} ({bow_r})\n\n"
+                        
+                    copy_text += f"📋 対象メンバー ({num_others}名)\n"
+                    copy_text += f"{members_str}"
+                    
+                    st.success("計算完了！枠内を長押し・タップでコピーできます")
+                    st.code(copy_text, language="text")
+
+# ==========================================
+# 2. イベント追加画面
+# ==========================================
 elif app_mode == "新イベントを教え込む📝":
     st.title("📝 期間限定イベントを覚えさせる")
     tab1, tab2 = st.tabs(["🏆 ランキング型", "🎁 報酬型"])
@@ -178,7 +302,9 @@ elif app_mode == "新イベントを教え込む📝":
                     except Exception as e: st.error(f"保存エラー: {e}")
                 else: st.error("イベント名を書いてね！")
 
-# --- 3. マニュアル閲覧画面 (固定コード組み込み版) ---
+# ==========================================
+# 3. マニュアル閲覧画面
+# ==========================================
 elif app_mode == "運営マニュアル 📜":
     st.title("📜 MMC 運営マニュアル")
     custom_data = load_custom_data()
@@ -186,7 +312,6 @@ elif app_mode == "運営マニュアル 📜":
 
     # --- タブ1: メンバー管理 ---
     with tab1:
-        # 1. 固定部分
         with st.expander("1. 新規加入の審査基準"):
             st.markdown("""申請一覧を確認し、以下の条件を**すべて**満たす場合のみ承認します。  
             - **炉レベル**: 25以上  
@@ -200,9 +325,6 @@ elif app_mode == "運営マニュアル 📜":
             - **移転**: 同盟本部の周辺へ移転してもらう。  
             - **ランクアップ**: 上記2点が確認できたら、R1からR3へ手動で変更する。  
             - **同盟マークの案内**: 名前の後ろに同盟マークをつけてもらうようにうながす。""")
-
-            # コピペ専用ボタン（st.code）を設置
-            
             st.code("""よかったら、名前の後ろに「ʕ·ᴥ·ʔᴹᴹᶜ」をつけて、MMCの仲間だよってアピールいただけないでしょうか。
 
 【付け方】  
@@ -217,10 +339,8 @@ elif app_mode == "運営マニュアル 📜":
             長期未ログインにより自動（または手動）で**R2に降格したメンバー**が対象。  
             **【退会処置の手順】**  
             - 対象者のプロフィールから最終ログイン時間を確認。  
-            - 個別メールを送信。    
+            - 個別メールを送信。   
             - メール送信後、同盟から追放（退会）処理。""")
-
-
             st.code("""お疲れ様です。長期未ログインのため、一旦同盟を離脱していただく形となります。
 また戻られた際には、再度申請してくださいね～😊 歓迎します！""", language=None)
 
@@ -230,7 +350,7 @@ elif app_mode == "運営マニュアル 📜":
             イベントでのルール違反（例：攻撃禁止対象への攻撃等）を行った者。  
             **【対応フロー】**:  
             - 同盟チャットまたは個別チャット（DM）で状況を確認し、注意を促す。  
-            - **応答がない（意思疎通が取れない）場合**: 速やかに**R1に降格**させる。    
+            - **応答がない（意思疎通が取れない）場合**: 速やかに**R1に降格**させる。   
             - その後も改善や連絡がない場合は、盟主に報告し、追放を検討する。""")
             
         with st.expander("5. ホワイトリストの管理（※盟主専用業務）"):
@@ -240,10 +360,7 @@ elif app_mode == "運営マニュアル 📜":
             - MMCおよびmmc間、その他同盟支援で他同盟に移動する可能性がある者。  
             - SVS等で他同盟との集結主を兼ねる者。""")
 
-
-        # 🌟 管理画面から追加した項目を「並列」に表示（見出しや線を削除）
         for exp in custom_data["👥 メンバー管理"]:
-            # タイトルに「✨」をつけて管理分だと分かるようにしていますが、不要なら削除してください
             with st.expander(exp['title']):
                 for block in exp.get('blocks', []):
                     if block['type'] == 'text': st.markdown(block['content'])
@@ -259,14 +376,13 @@ elif app_mode == "運営マニュアル 📜":
             **【効率化のテクニック】**:  
             - 山や川などの通行不能エリアを避け、旗の消費数を最小限に抑えます。  
             - 外交上のNAP（不戦条約）に基づき、他同盟も旗を跨げるように、ジグザグにルートを引きます。  
-            
             """)
         
         with st.expander("2. パズル進行用「兵1旗」"):
             st.markdown("""同盟パズルの「旗建設」タスクを効率よく回すための特殊運用です。  
             **【建設設定】**:  
             - 旗の建設を開始する際、必ず「兵士1名・英雄なし」の部隊1隊のみで建設を開始します。  
-            - o	目的は「あえて建設時間を長くし、多くのメンバーが支援（ヘルプ）やパズル進行に関与できるようにすること」です。  
+            - 目的は「あえて建設時間を長くし、多くのメンバーが支援（ヘルプ）やパズル進行に関与できるようにすること」です。  
             **【監視とアナウンス】**:  
             - 建設中の旗を確認し、「兵士1名以外」または「英雄入り」の部隊を送っているメンバーがいた場合、同盟チャットで以下のようにアナウンスし、該当部隊を強制送還させます。  
             **【再設置ループ】**:  
@@ -287,8 +403,6 @@ elif app_mode == "運営マニュアル 📜":
             - ⇒マップの座標を同盟チャットで共有  
             """)
 
-
-        # 🌟 管理画面から追加した項目を並列に表示
         for exp in custom_data["🚩 領土・資源"]:
             with st.expander(exp['title']):
                 for block in exp.get('blocks', []):
@@ -297,24 +411,22 @@ elif app_mode == "運営マニュアル 📜":
 
     # --- タブ3: イベント攻略 ---
     with tab3:
-        # (固定の expander 1〜8 はそのまま)
         with st.expander("1. 熊狩り"):
             st.markdown("""クマで参加者全員のポイントを伸ばすための考え方です。  
             - 基本的には罠の近くに集結主がいた方がいいです。  
             - 罠強化を忘れないようにアナウンスしましょう。  
             """)
-            
             st.code("""🐻今日は熊狩り🐻
 【時間】
-くま2　21:00〜
-くま1　22:00〜
+くま2 21:00〜
+くま1 22:00〜
 【攻め方】 
 🚩 集結を出す人：自分の1番強い英雄でお願いします！✨ 
 🚩 集結に乗る人：左英雄はジェシー・ジャセル・ソユン・ジェロニモ・フレンダーを！強い人のところに乗っかるとダメージ伸びるよ💪 
 兵士割合は「弓」を多めにするのがコツです（盾2槍2弓6、盾1槍2弓7など）🏹 
 みんなでダメージ出していこー！楽しもー！🎶 """, language=None)
 
-        with st.expander("2. 峡谷合戦 / 兵器工場争奪戦　（事前登録）"):
+        with st.expander("2. 峡谷合戦 / 兵器工場争奪戦 （事前登録）"):
             st.markdown("""この業務の最大の敵は「忘れ」です。  
             **【時間枠の登録（R4以上）】**:  
             - **タイミング**: まずは「参加しやすい時間」のアンケート結果から、時間を設定します。  
@@ -325,18 +437,16 @@ elif app_mode == "運営マニュアル 📜":
             - **欠員厳禁**: 「参戦志願した方は当日絶対参加」であることを改めて念押しします。  
             - **メンバー補充**: 15名に達しないとエントリーできません！軍団１（ガチな方）は候補時間枠の投票をしてくれた人の上位から順に補充し、軍団２は総力下位から順に補充します。 
             """)
-            
             st.code("""🏹兵器工場争奪戦🏹
 貴重な領主装備アイテムを手に入れる大チャンス✨ 絶対勝つよー！💪 
 別マップで行われる60分のイベント
 王国ルール適応外。都市攻撃されるし、やります🔥
 ポチポチ回復出来ません、回復加速アイテム必須（同盟ショップ）
 
-軍団2　21時
-軍団1　23時
+軍団2 21時
+軍団1 23時
 
 どちらか選んで、出撃管理→参戦志願を押して下さい（R4は自分でチェック）""", language=None)
-
             st.code("""🔥峡谷合戦🔥
 3同盟間で争うイベント
 軍団1 23:00-24:00
@@ -345,7 +455,6 @@ elif app_mode == "運営マニュアル 📜":
 ・最終的にポイントが多い同盟が勝利
 ・氷封宮殿を最後に支配してたら5万ポイント追加
 ・ダイヤ加速、進軍加速アリ""", language=None)
-
             st.code("""〜燃料の使い方〜
 燃料は時間経過で回復
 ・移動
@@ -353,15 +462,12 @@ elif app_mode == "運営マニュアル 📜":
 
 """, language=None)
 
-            
-
         with st.expander("3. 同盟争覇戦"):
             st.markdown("""この業務の最大の敵は「忘れ」です。  
             **【ルートの設定】**:  
             - **タイミング**: エントリー〆切から数時間以内に、ルートを変更します。  
             - **操作**: 7:59までに全員に真ん中にエントリーするように促します。その後、ルート変更から、左右中央のルートに割り振ります。どのルートにどう割り振るかは戦略次第となるので、担当者は要確認です。  
             """)
-            
             st.code("""⭕同盟争覇戦⭕
 ①英雄は、ジーナ抜きの最強。ジーナが最強の装備をしてる時は、付け替えてね
 ②兵士配分は基本613。足りない時は、それに近づけるように調整
@@ -391,7 +497,6 @@ elif app_mode == "運営マニュアル 📜":
             - 同盟⇒拠点争奪⇒報酬
             - 23時に砦2か所重なっていた！となっていたら、別の砦を担当していた方にも割り振ってあげましょう。  
             """)
-
             st.code("""初手は「集結」のみです！ソロ突撃は禁止だよ〜🙅‍♀️ 
 他の方は左ジェシーで乗ってくださいね！絶対勝つよー！💪✨
 """, language=None)
@@ -399,20 +504,16 @@ elif app_mode == "運営マニュアル 📜":
         with st.expander("5. クレジョイ"):
             st.markdown("""参加意思の確認のため、当日、アンケートを実施します。  
             """)
-
-
             st.code("""🔥クレジョイ🔥
 今日はクレジョイ！みんなで守りきるよー！🛡️✨
-🚩〜17:00　参加確認投票中
-🚩〜19:00　ラスト本部防衛メンバー発表
-🚩〜21:00　ラストメンバーは部隊作成→保存
+🚩〜17:00 参加確認投票中
+🚩〜19:00 ラスト本部防衛メンバー発表
+🚩〜21:00 ラストメンバーは部隊作成→保存
 🚩 21:00〜 兵士交換スタート！同盟チャットに座標貼ってね！
 🚩 21:30〜 クレジョイ開始！🔥""", language=None)
-
             st.code("""【ラスト本部防衛メンバーへ】 
 100,000の「盾兵だけ」の部隊を保存しておいてください！弓は入れないでね🙅‍♀️ 
 領主ファイル→部隊→部隊編成→好きな番号に保存""", language=None)
-
             st.code("""【オフライン参加】
 オフライン参加の人も、事前に兵士を交換して「都市を空」にするのを忘れずに！😊 
 投票に参加してなくても、参加可能です🎶
@@ -429,11 +530,9 @@ elif app_mode == "運営マニュアル 📜":
             - 幹部チャットで報告し、盟主もしくは盟主代行が相手および相手盟主に謝罪に伺いましょう。※要事前確認  
             - 違反者に、何を間違えたか理解してもらいましょう。
             """)
-
             st.code("""🏹全軍参戦（キルイベ）🏹
 明日9時からキルイベです！
 サーバールール順守🔥""", language=None)
-
             st.code("""🏹9時以降は通常ルールです🏹
 キルイベ終了後（9時以降）は通常ルールに戻ります🎵
 【3917サーバー通常ルール(2/3改定)】
@@ -452,9 +551,6 @@ elif app_mode == "運営マニュアル 📜":
         with st.expander("7. 烈火と牙"):
             st.markdown("""案内文のみ。  
             """)
-
-
-
             st.code("""🔥烈火と牙イベント🔥
 火晶がもらえるからぜひ参加してね🎵
 
@@ -472,21 +568,20 @@ elif app_mode == "運営マニュアル 📜":
         with st.expander("8. 採集案内"):
             st.markdown("""案内文のみ。  
             """)
-
             st.code("""🍖明日は採集ポイント🍖
 採集バフ（ダイヤ）
 マップに出て、自分の都市タッチ→都市強化→発展→採集速度
 """, language=None)
 
-
-        # カスタム項目
         for exp in custom_data["⚔️ イベント攻略"]:
             with st.expander(exp['title']):
                 for block in exp.get('blocks', []):
                     if block['type'] == 'text': st.markdown(block['content'])
                     else: st.code(block['content'], language=None)
 
-# --- 4. マニュアル編集画面 ---
+# ==========================================
+# 4. マニュアル編集画面
+# ==========================================
 elif app_mode == "マニュアルを編集する ⚙️":
     st.title("⚙️ マニュアル編集モード")
     data = load_custom_data()
