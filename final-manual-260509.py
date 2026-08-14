@@ -184,7 +184,27 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
             ]
             
             # 自動クレンジング処理適用
-            cleaned_members = [clean_member_name(name) for name in sample_ocr_results if clean_member_name(name)]
+# --- クレジョイ用 テキストクレンジング関数 ---
+def clean_member_name(raw_name: str) -> str:
+    if not raw_name:
+        return ""
+    
+    cleaned = raw_name.strip()
+    
+    # ① 「ʕ」または「·」が含まれている場合、最初に出てきた位置から後ろをすべて削除
+    # （例: "わからんʕ·ᴥ·ʔM²C" -> "わからん"）
+    match = re.search(r'[ʕ·]', cleaned)
+    if match:
+        cleaned = cleaned[:match.start()]
+    
+    # ② 残ったテキストから特殊記号（絵文字や上位文字など）を除去
+    # (ひらがな、カタカナ、漢字、アルファベット、数字、一部の基本記号「。」を残す)
+    cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF。]', '', cleaned)
+    
+    # ③ 念のため、末尾に残った同盟タグ (M2C, MMC, MC) を除去
+    cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE)
+    
+    return cleaned.strip()
             
             # --- STEP 2: 読み取り結果の確認・修正 ---
             st.subheader("② メンバーの確認・修正")
