@@ -3,15 +3,14 @@ import pandas as pd
 import json
 import os
 import re
-from PIL import Image, ImageEnhance, ImageOps
-import difflib
+from PIL import Image
 
-# --- OCRライブラリの安全なインポート ---
+# --- Google GenAI (Gemini) のインポート ---
 try:
-    import pytesseract
-    HAS_OCR = True
+    from google import genai
+    HAS_GENAI = True
 except ImportError:
-    HAS_OCR = False
+    HAS_GENAI = False
 
 # --- 設定・ファイルパス ---
 DB_FILE = 'event_database.json'
@@ -28,13 +27,6 @@ DEFAULT_ROSTER = [
     "KENT", "なはらた", "花ちゃん", "やらかす猫", "雪乃", 
     "えんまめ", "ジョイ", "ばりうけさん", "ゆめゆめ", "ポメラニアンもち", "ケイヤン"
 ]
-
-# 表記ゆれ辞書 (画像内の日本語/別表記 -> 名簿の正式名称)
-NAME_ALIASES = {
-    "とりあえずビール": "toriaezu beer",
-    "とりあえずびーる": "toriaezu beer",
-    "雪乃。": "雪乃",
-}
 
 def load_member_roster():
     if os.path.exists(MEMBER_ROSTER_FILE):
@@ -106,34 +98,42 @@ def save_db(db):
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
-# --- クレジョイ用 テキストクレンジング & 名簿あいまい照合 ---
-def clean_and_match_member(raw_text: str, roster: list) -> str:
-    if not raw_text:
-        return ""
+# --- Gemini API を使った画像認識関数 ---
+def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
+    api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
+    if not api_key:
+        st.warning("⚠️ GEMINI_API_KEY が設定されていません。StreamlitのSecretsに設定してください。")
+        return []
     
-    cleaned = raw_text.strip()
+    if not HAS_GENAI:
+        st.error("google-genai ライブラリがインストールされていません。")
+        return []
+
+    client = genai.Client(api_key=api_key)
     
-    # 1. 記号カット
-    match = re.search(r'[ʕ·]', cleaned)
-    if match:
-        cleaned = cleaned[:match.start()]
-    
-    cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF。]', '', cleaned)
-    cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE).strip()
-    
-    if len(cleaned) <= 1:
-        return ""
-    
-    # 2. 表記ゆれ辞書チェック
-    if cleaned in NAME_ALIASES:
-        return NAME_ALIASES[cleaned]
-    
-    # 3. 名簿（辞書）とのあいまい照合 (類似度 40%以上で自動補正)
-    matches = difflib.get_close_matches(cleaned, roster, n=1, cutoff=0.40)
-    if matches:
-        return matches[0]
-    
-    return cleaned
+    roster_str = ", ".join(roster)
+    prompt = f"""
+あなたはゲーム「ホワイトアウト・サバイバル」の画像読み取りアシスタントです。
+添付されたスクショ画像（投票メンバー一覧）から、参加しているメンバーの名前（最大12名）を抽出してください。
+
+【厳格なルール】
+1. 以下の【同盟メンバー名簿】の中から、画像内に写っているメンバーを特定して一致する名前を出力してください。
+   名簿: [{roster_str}]
+2. 特殊記号（「ʕ·ᴥ·ʔ」など）や同盟タグ（「M2C」「MMC」「MC」など）は完全に除去してください。
+3. 「とりあえずビール」は名簿にある「toriaezu beer」として扱ってください。「雪乃。」は「雪乃」として扱ってください。
+4. 出力は、1行に1人ずつのメンバー名のみを出力してください。解説や挨拶、余計な文字は一切含めないでください。
+"""
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[prompt, image]
+        )
+        lines = response.text.strip().split("\n")
+        extracted = [l.strip() for l in lines if l.strip() and not l.startswith("#")]
+        return extracted
+    except Exception as e:
+        st.error(f"AI読み取りエラー: {e}")
+        return []
 
 # --- 共通の初期化 ---
 st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
@@ -224,7 +224,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 
     # --- 名簿管理アコーディオン ---
     with st.expander(f"👥 同盟メンバー名簿の確認・編集（現在: {len(roster)} 名）"):
-        st.caption("あらかじめ同盟メンバーの名前をここに登録しておくと、画像から超高精度で自動判定されます。")
+        st.caption("あらかじめ同盟メンバーの名前をここに登録しておくと、AIが画像を名簿と照合して完璧に読み取ります。")
         roster_text = st.text_area("登録メンバー一覧 (1行に1人):", value="\n".join(roster), height=160)
         if st.button("💾 名簿を保存する"):
             updated_roster = [r.strip() for r in roster_text.split("\n") if r.strip()]
@@ -246,31 +246,12 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
             with st.expander("🖼️ アップロードした画像を確認"):
                 st.image(raw_image, use_container_width=True)
             
-            # --- OCR読み取り & 名簿マッチング ---
+            # --- Gemini AI による高精度読み取り ---
             if "last_uploaded" not in st.session_state or st.session_state["last_uploaded"] != uploaded_file.name:
-                parsed_members = []
-                if HAS_OCR:
-                    try:
-                        with st.spinner("画像を解析して名簿と照合中..."):
-                            # 画像前処理: グレースケール化 ＆ コントラスト強調
-                            gray_img = ImageOps.grayscale(raw_image)
-                            enhancer = ImageEnhance.Contrast(gray_img)
-                            enhanced_img = enhancer.enhance(2.0)
-                            
-                            # OCR実行
-                            raw_text = pytesseract.image_to_string(enhanced_img, lang='jpn+eng')
-                            
-                            # 名簿照合
-                            tokens = re.split(r'[\s\n]+', raw_text)
-                            for token in tokens:
-                                matched_name = clean_and_match_member(token, roster)
-                                if matched_name and matched_name in roster and matched_name not in parsed_members:
-                                    parsed_members.append(matched_name)
-                    except Exception as e:
-                        st.info("OCRを実行できませんでした。手動で入力してください。")
-                
-                st.session_state["parsed_members"] = parsed_members
-                st.session_state["last_uploaded"] = uploaded_file.name
+                with st.spinner("AIが画像からメンバーを解析中..."):
+                    parsed_members = extract_members_with_gemini(raw_image, roster)
+                    st.session_state["parsed_members"] = parsed_members
+                    st.session_state["last_uploaded"] = uploaded_file.name
 
             # --- STEP 2: 読み取り結果の確認・修正 ---
             st.subheader("② メンバーの確認・修正")
