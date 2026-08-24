@@ -4,20 +4,19 @@ import json
 import os
 import re
 from PIL import Image
-import numpy as np
-import easyocr
+
+# --- OCRライブラリの安全なインポート (pytesseract: 超軽量) ---
+try:
+    import pytesseract
+    HAS_OCR = True
+except ImportError:
+    HAS_OCR = False
 
 # --- 設定・ファイルパス ---
 DB_FILE = 'event_database.json'
 EXCEL_FILE = 'イベント一覧.xlsx'
 OTHER_EXCEL = 'その他イベント一覧.xlsx'
 CONFIG_FILE = 'manual_custom_data.json'
-
-# --- OCRリーダーの初期化 (キャッシュして高速化) ---
-@st.cache_resource
-def get_ocr_reader():
-    # 日本語と英語に対応
-    return easyocr.Reader(['ja', 'en'])
 
 # --- データ読み書き関数 ---
 def load_custom_data():
@@ -84,7 +83,7 @@ def clean_member_name(raw_name: str) -> str:
     cleaned = raw_name.strip()
     
     # UIの定型文や戦力などのノイズ文字をスキップ
-    ignore_patterns = [r"投票メンバー", r"項目を選択", r"以下", r"M$", r"K$"]
+    ignore_patterns = [r"投票", r"メンバー", r"項目", r"選択", r"以下", r"M$", r"K$"]
     for p in ignore_patterns:
         if re.search(p, cleaned):
             return ""
@@ -203,22 +202,25 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
             with st.expander("🖼️ アップロードした画像を確認"):
                 st.image(image, use_container_width=True)
             
-            # --- 実際のOCR読み取り処理 ---
+            # --- OCR読み取り処理 ---
             if "last_uploaded" not in st.session_state or st.session_state["last_uploaded"] != uploaded_file.name:
-                with st.spinner("画像を解析中...少々お待ちください"):
-                    reader = get_ocr_reader()
-                    img_np = np.array(image)
-                    ocr_results = reader.readtext(img_np, detail=0)
-                    
-                    # 抽出した文字列をクレンジング
-                    parsed_members = []
-                    for text in ocr_results:
-                        c_name = clean_member_name(text)
-                        if c_name and c_name not in parsed_members:
-                            parsed_members.append(c_name)
-                    
-                    st.session_state["parsed_members"] = parsed_members
-                    st.session_state["last_uploaded"] = uploaded_file.name
+                parsed_members = []
+                if HAS_OCR:
+                    try:
+                        with st.spinner("画像を解析中...少々お待ちください"):
+                            # 日本語＋英語で読み取り
+                            raw_text = pytesseract.image_to_string(image, lang='jpn+eng')
+                            lines = raw_text.split("\n")
+                            for line in lines:
+                                for chunk in line.split():
+                                    c_name = clean_member_name(chunk)
+                                    if c_name and c_name not in parsed_members:
+                                        parsed_members.append(c_name)
+                    except Exception as e:
+                        st.info("OCR実行中にスキップしました。手動で入力してください。")
+                
+                st.session_state["parsed_members"] = parsed_members
+                st.session_state["last_uploaded"] = uploaded_file.name
 
             # --- STEP 2: 読み取り結果の確認・修正 ---
             st.subheader("② メンバーの確認・修正")
@@ -232,7 +234,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
             st.caption(f"現在の認識人数: **{len(member_list)} 名**")
 
             if not member_list:
-                st.warning("メンバー名が認識できませんでした。上の入力欄に手動で入力してください。")
+                st.warning("メンバー名を入力してください。")
             else:
                 st.divider()
 
@@ -299,7 +301,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         copy_text += f"{members_str}"
                         
                         st.success("計算完了！枠内を長押し・タップでコピーできます")
-                        st.code(copy_text, language="text")
+                        st.code(copy_text, language=None)
 
 # ==========================================
 # 3. イベント追加画面
