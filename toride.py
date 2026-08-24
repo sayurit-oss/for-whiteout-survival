@@ -3,9 +3,10 @@ import pandas as pd
 import json
 import os
 import re
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageOps
+import difflib
 
-# --- OCRライブラリの安全なインポート (pytesseract: 超軽量) ---
+# --- OCRライブラリの安全なインポート ---
 try:
     import pytesseract
     HAS_OCR = True
@@ -17,6 +18,36 @@ DB_FILE = 'event_database.json'
 EXCEL_FILE = 'イベント一覧.xlsx'
 OTHER_EXCEL = 'その他イベント一覧.xlsx'
 CONFIG_FILE = 'manual_custom_data.json'
+MEMBER_ROSTER_FILE = 'alliance_members.json'
+
+# --- 同盟メンバー初期名簿（全26名） ---
+DEFAULT_ROSTER = [
+    "わからん", "ringo", "harupon", "マンダラ", "ナーナ", 
+    "ハンギョ", "toriaezu beer", "愛犬クル", "くま3", "ショーン伍長", 
+    "mii", "わんこ", "すん", "れくさす", "アッシュ", 
+    "KENT", "なはらた", "花ちゃん", "やらかす猫", "雪乃", 
+    "えんまめ", "ジョイ", "ばりうけさん", "ゆめゆめ", "ポメラニアンもち", "ケイヤン"
+]
+
+# 表記ゆれ辞書 (画像内の日本語/別表記 -> 名簿の正式名称)
+NAME_ALIASES = {
+    "とりあえずビール": "toriaezu beer",
+    "とりあえずびーる": "toriaezu beer",
+    "雪乃。": "雪乃",
+}
+
+def load_member_roster():
+    if os.path.exists(MEMBER_ROSTER_FILE):
+        try:
+            with open(MEMBER_ROSTER_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
+    return DEFAULT_ROSTER
+
+def save_member_roster(roster_list):
+    with open(MEMBER_ROSTER_FILE, 'w', encoding='utf-8') as f:
+        json.dump(roster_list, f, ensure_ascii=False, indent=4)
 
 # --- データ読み書き関数 ---
 def load_custom_data():
@@ -75,35 +106,34 @@ def save_db(db):
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
-# --- クレジョイ用 テキストクレンジング関数 ---
-def clean_member_name(raw_name: str) -> str:
-    if not raw_name:
+# --- クレジョイ用 テキストクレンジング & 名簿あいまい照合 ---
+def clean_and_match_member(raw_text: str, roster: list) -> str:
+    if not raw_text:
         return ""
     
-    cleaned = raw_name.strip()
+    cleaned = raw_text.strip()
     
-    # UIの定型文や戦力などのノイズ文字をスキップ
-    ignore_patterns = [r"投票", r"メンバー", r"項目", r"選択", r"以下", r"M$", r"K$"]
-    for p in ignore_patterns:
-        if re.search(p, cleaned):
-            return ""
-
-    # ① 「ʕ」または「·」が含まれている場合、最初に出てきた位置から後ろをすべて削除
+    # 1. 記号カット
     match = re.search(r'[ʕ·]', cleaned)
     if match:
         cleaned = cleaned[:match.start()]
     
-    # ② 残ったテキストから特殊記号を除去 (ひらがな、カタカナ、漢字、英数字、「。」を残す)
     cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF。]', '', cleaned)
+    cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE).strip()
     
-    # ③ 末尾に残った同盟タグ (M2C, MMC, MC) を除去
-    cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE)
-    
-    # 短すぎるノイズ（1文字以下）や「R5」「R4」などのランク表記を除去
-    if len(cleaned) <= 1 or re.match(r'^R[1-5]$', cleaned):
+    if len(cleaned) <= 1:
         return ""
     
-    return cleaned.strip()
+    # 2. 表記ゆれ辞書チェック
+    if cleaned in NAME_ALIASES:
+        return NAME_ALIASES[cleaned]
+    
+    # 3. 名簿（辞書）とのあいまい照合 (類似度 40%以上で自動補正)
+    matches = difflib.get_close_matches(cleaned, roster, n=1, cutoff=0.40)
+    if matches:
+        return matches[0]
+    
+    return cleaned
 
 # --- 共通の初期化 ---
 st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
@@ -190,6 +220,20 @@ if app_mode == "スケジュールを自動で作る✨":
 elif app_mode == "クレジョイ案内をつくる 🛡️":
     st.title("🛡️ クレジョイ10&20駐屯")
 
+    roster = load_member_roster()
+
+    # --- 名簿管理アコーディオン ---
+    with st.expander(f"👥 同盟メンバー名簿の確認・編集（現在: {len(roster)} 名）"):
+        st.caption("あらかじめ同盟メンバーの名前をここに登録しておくと、画像から超高精度で自動判定されます。")
+        roster_text = st.text_area("登録メンバー一覧 (1行に1人):", value="\n".join(roster), height=160)
+        if st.button("💾 名簿を保存する"):
+            updated_roster = [r.strip() for r in roster_text.split("\n") if r.strip()]
+            save_member_roster(updated_roster)
+            st.success("メンバー名簿を保存しました！✨")
+            st.rerun()
+
+    st.divider()
+
     col_main, _ = st.columns([10, 1])
     
     with col_main:
@@ -197,27 +241,33 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
         uploaded_file = st.file_uploader("投票メンバーのスクショを選択", type=["png", "jpg", "jpeg"])
 
         if uploaded_file is not None:
-            image = Image.open(uploaded_file)
+            raw_image = Image.open(uploaded_file)
             
             with st.expander("🖼️ アップロードした画像を確認"):
-                st.image(image, use_container_width=True)
+                st.image(raw_image, use_container_width=True)
             
-            # --- OCR読み取り処理 ---
+            # --- OCR読み取り & 名簿マッチング ---
             if "last_uploaded" not in st.session_state or st.session_state["last_uploaded"] != uploaded_file.name:
                 parsed_members = []
                 if HAS_OCR:
                     try:
-                        with st.spinner("画像を解析中...少々お待ちください"):
-                            # 日本語＋英語で読み取り
-                            raw_text = pytesseract.image_to_string(image, lang='jpn+eng')
-                            lines = raw_text.split("\n")
-                            for line in lines:
-                                for chunk in line.split():
-                                    c_name = clean_member_name(chunk)
-                                    if c_name and c_name not in parsed_members:
-                                        parsed_members.append(c_name)
+                        with st.spinner("画像を解析して名簿と照合中..."):
+                            # 画像前処理: グレースケール化 ＆ コントラスト強調
+                            gray_img = ImageOps.grayscale(raw_image)
+                            enhancer = ImageEnhance.Contrast(gray_img)
+                            enhanced_img = enhancer.enhance(2.0)
+                            
+                            # OCR実行
+                            raw_text = pytesseract.image_to_string(enhanced_img, lang='jpn+eng')
+                            
+                            # 名簿照合
+                            tokens = re.split(r'[\s\n]+', raw_text)
+                            for token in tokens:
+                                matched_name = clean_and_match_member(token, roster)
+                                if matched_name and matched_name in roster and matched_name not in parsed_members:
+                                    parsed_members.append(matched_name)
                     except Exception as e:
-                        st.info("OCR実行中にスキップしました。手動で入力してください。")
+                        st.info("OCRを実行できませんでした。手動で入力してください。")
                 
                 st.session_state["parsed_members"] = parsed_members
                 st.session_state["last_uploaded"] = uploaded_file.name
@@ -226,15 +276,15 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
             st.subheader("② メンバーの確認・修正")
             current_text = "\n".join(st.session_state.get("parsed_members", []))
             members_text = st.text_area(
-                "読み取ったメンバー名 (1行に1人 / 誤字・不足があれば直接編集可)",
+                "抽出されたメンバー名 (手動で修正・追加も可能です)",
                 value=current_text,
                 height=180
             )
             member_list = [m.strip() for m in members_text.split("\n") if m.strip()]
-            st.caption(f"現在の認識人数: **{len(member_list)} 名**")
+            st.caption(f"現在の参加人数: **{len(member_list)} 名**")
 
             if not member_list:
-                st.warning("メンバー名を入力してください。")
+                st.warning("メンバー名が認識できませんでした。上の枠に直接入力してください。")
             else:
                 st.divider()
 
