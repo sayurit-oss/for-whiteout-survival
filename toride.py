@@ -103,7 +103,7 @@ def save_db(db):
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
-# --- Gemini API を使った画像認識関数 (最新モデル自動検出版) ---
+# --- Gemini API を使った画像認識関数 ---
 def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
     api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", "")).strip()
     if not api_key:
@@ -127,15 +127,14 @@ def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
 4. 出力は、1行に1人ずつのメンバー名のみを出力してください。解説や挨拶、余計な文字は一切含めないでください。
 """
 
+    # 指定された最新モデルを最優先で探索
+    model_candidates = ['gemini-3.6-flash', 'models/gemini-3.6-flash', 'gemini-flash-latest']
     raw_text = ""
     last_err = None
 
     # 新SDK (google-genai) の場合
     if GENAI_TYPE == "new":
         client = genai.Client(api_key=api_key)
-        # 利用可能なモデル候補（最新エイリアス順）
-        model_candidates = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash']
-        
         for m in model_candidates:
             try:
                 response = client.models.generate_content(
@@ -152,22 +151,9 @@ def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
     # 旧SDK (google-generativeai) の場合
     else:
         legacy_genai.configure(api_key=api_key)
-        # 利用可能なモデル一覧をAPIから動的に取得して自動選択
-        try:
-            available_models = [
-                m.name for m in legacy_genai.list_models() 
-                if 'generateContent' in m.supported_generation_methods
-            ]
-            # flashモデルを最優先で探索
-            preferred = [m for m in available_models if 'flash' in m.lower()]
-            other = [m for m in available_models if 'gemini' in m.lower() and m not in preferred]
-            test_models = preferred + other + ['gemini-flash-latest', 'gemini-2.0-flash']
-        except:
-            test_models = ['gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.5-flash']
-
-        for m_name in test_models:
-            clean_m = m_name.replace("models/", "")
+        for m in model_candidates:
             try:
+                clean_m = m.replace("models/", "")
                 model = legacy_genai.GenerativeModel(clean_m)
                 response = model.generate_content([prompt, image])
                 raw_text = response.text
