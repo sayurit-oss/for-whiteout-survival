@@ -5,12 +5,17 @@ import os
 import re
 from PIL import Image
 
-# --- Google GenAI (Gemini) のインポート ---
+# --- Google Gemini ライブラリの安全なインポート (新旧両対応) ---
+GENAI_TYPE = None
 try:
     from google import genai
-    HAS_GENAI = True
+    GENAI_TYPE = "new"
 except ImportError:
-    HAS_GENAI = False
+    try:
+        import google.generativeai as legacy_genai
+        GENAI_TYPE = "legacy"
+    except ImportError:
+        GENAI_TYPE = None
 
 # --- 設定・ファイルパス ---
 DB_FILE = 'event_database.json'
@@ -100,17 +105,15 @@ def save_db(db):
 
 # --- Gemini API を使った画像認識関数 ---
 def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
-    api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
+    api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", "")).strip()
     if not api_key:
-        st.warning("⚠️ GEMINI_API_KEY が設定されていません。StreamlitのSecretsに設定してください。")
+        st.error("⚠️ GEMINI_API_KEY が見つかりません。Streamlitの `Secrets` に設定してください。")
         return []
     
-    if not HAS_GENAI:
-        st.error("google-genai ライブラリがインストールされていません。")
+    if not GENAI_TYPE:
+        st.error("⚠️ Geminiのライブラリがインストールされていません。requirements.txt を確認してください。")
         return []
 
-    client = genai.Client(api_key=api_key)
-    
     roster_str = ", ".join(roster)
     prompt = f"""
 あなたはゲーム「ホワイトアウト・サバイバル」の画像読み取りアシスタントです。
@@ -123,17 +126,39 @@ def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
 3. 「とりあえずビール」は名簿にある「toriaezu beer」として扱ってください。「雪乃。」は「雪乃」として扱ってください。
 4. 出力は、1行に1人ずつのメンバー名のみを出力してください。解説や挨拶、余計な文字は一切含めないでください。
 """
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[prompt, image]
-        )
-        lines = response.text.strip().split("\n")
-        extracted = [l.strip() for l in lines if l.strip() and not l.startswith("#")]
-        return extracted
-    except Exception as e:
-        st.error(f"AI読み取りエラー: {e}")
+
+    models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    raw_text = ""
+    last_err = None
+
+    for model_name in models_to_try:
+        try:
+            if GENAI_TYPE == "new":
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[prompt, image]
+                )
+                raw_text = response.text
+            else:
+                legacy_genai.configure(api_key=api_key)
+                model = legacy_genai.GenerativeModel(model_name)
+                response = model.generate_content([prompt, image])
+                raw_text = response.text
+            
+            if raw_text:
+                break
+        except Exception as e:
+            last_err = e
+            continue
+
+    if not raw_text:
+        st.error(f"⚠️ AI読み取りエラー: {last_err}")
         return []
+
+    lines = raw_text.strip().split("\n")
+    extracted = [l.strip().lstrip("・-1234567890. ") for l in lines if l.strip() and not l.startswith("#")]
+    return extracted
 
 # --- 共通の初期化 ---
 st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
