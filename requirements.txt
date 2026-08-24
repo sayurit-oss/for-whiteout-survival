@@ -1,3 +1,6 @@
 streamlit>=1.32.0
 pandas
 openpyxl
+easyocr
+Pillow
+numpy
