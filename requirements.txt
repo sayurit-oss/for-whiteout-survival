@@ -4,3 +4,4 @@ openpyxl
 easyocr
 Pillow
 numpy
+pytesseract
