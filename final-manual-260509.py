@@ -438,7 +438,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         copy_text_2 = f"📋 対象メンバー ({num_others}名)\n"
                         copy_text_2 += f"{members_str}\n"
                         if top_helpers:
-                            copy_text_2 += f"\n⚠️ 駐屯枠が不足した場合は駐屯していないメンバーで補填をお願いします！（早い者勝ち）"
+                            copy_text_2 += f"\n⚠️ 駐屯が不足した場合は駐屯していないメンバーで補填をお願いします！（早い者勝ち）"
 
                         st.success("計算完了！")
                         
