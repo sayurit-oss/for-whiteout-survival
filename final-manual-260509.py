@@ -452,15 +452,14 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 # 3. 要塞・砦行軍を計算する画面
 # ==========================================
 elif app_mode == MENU_SIMULATOR:
-    st.title("⚔️ 要塞・砦行軍を計算する")
-    st.caption("本部・確定砦・確定要塞からの行軍時間と、前回取得同盟を踏まえた作戦検討テキストを生成します。")
+    st.title("⚔️ 要塞・砦の行軍時間を計算する")
 
     col_left, col_right = st.columns([1, 1], gap="large")
 
     all_forts = [f"砦{i}号" for i in range(1, 13)]
 
     with col_left:
-        st.subheader("1. 確定枠（アンケート等で決定）")
+        st.subheader("1. 確定枠")
         
         # 確定要塞
         f_cols = st.columns([2, 2, 2])
