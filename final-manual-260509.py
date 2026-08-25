@@ -4,12 +4,26 @@ import json
 import os
 import re
 import math
+from PIL import Image
+
+# --- Google Gemini ライブラリの安全なインポート (新旧両対応) ---
+GENAI_TYPE = None
+try:
+    from google import genai
+    GENAI_TYPE = "new"
+except ImportError:
+    try:
+        import google.generativeai as legacy_genai
+        GENAI_TYPE = "legacy"
+    except ImportError:
+        GENAI_TYPE = None
 
 # --- 設定・ファイルパス ---
 DB_FILE = 'event_database.json'
 EXCEL_FILE = 'イベント一覧.xlsx'
 OTHER_EXCEL = 'その他イベント一覧.xlsx'
 CONFIG_FILE = 'manual_custom_data.json'
+MEMBER_ROSTER_FILE = 'alliance_members.json'
 
 # --- 座標・行軍シミュレーター設定 ---
 HQ_NAME = "本部"
@@ -45,6 +59,28 @@ def get_travel_time(p1_coord, p2_coord):
     sec = dist * SEC_PER_UNIT
     minutes = round(sec / 60)
     return minutes, sec
+
+# --- 同盟メンバー初期名簿 ---
+DEFAULT_ROSTER = [
+    "わからん", "ringo", "harupon", "マンダラ", "LOSER", "ナーナ", 
+    "ハンギョ", "toriaezu beer", "愛犬クル", "くま3", "ショーン伍長", 
+    "mii", "わんこ", "すん", "れくさす", "アッシュ", 
+    "KENT", "なはらた", "花ちゃん", "やらかす猫", "雪乃", 
+    "えんまめ", "ジョイ", "ばりうけさん", "ゆめゆめ", "ポメラニアンもち", "ケイヤン", "なんし～", "黒潮丸", "しるす", "Lilia", "ぶどう", "かなはなむ", "レグルス", "SGT", "マーンダラ", "シオン"
+]
+
+def load_member_roster():
+    if os.path.exists(MEMBER_ROSTER_FILE):
+        try:
+            with open(MEMBER_ROSTER_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
+    return DEFAULT_ROSTER
+
+def save_member_roster(roster_list):
+    with open(MEMBER_ROSTER_FILE, 'w', encoding='utf-8') as f:
+        json.dump(roster_list, f, ensure_ascii=False, indent=4)
 
 # --- データ読み書き関数 ---
 def load_custom_data():
@@ -103,17 +139,69 @@ def save_db(db):
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
-# --- クレジョイ用 テキストクレンジング関数 ---
-def clean_member_name(raw_name: str) -> str:
-    if not raw_name:
-        return ""
-    cleaned = raw_name.strip()
-    match = re.search(r'[ʕ·]', cleaned)
-    if match:
-        cleaned = cleaned[:match.start()]
-    cleaned = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF。]', '', cleaned)
-    cleaned = re.sub(r'(M2C|MMC|MC)$', '', cleaned, flags=re.IGNORECASE)
-    return cleaned.strip()
+# --- Gemini API を使った画像認識関数 ---
+def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
+    api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", "")).strip()
+    if not api_key:
+        st.error("⚠️ GEMINI_API_KEY が見つかりません。Streamlitの `Secrets` に設定してください。")
+        return []
+    
+    if not GENAI_TYPE:
+        st.error("⚠️ Geminiのライブラリがインストールされていません。requirements.txt を確認してください。")
+        return []
+
+    roster_str = ", ".join(roster)
+    prompt = f"""
+あなたはゲーム「ホワイトアウト・サバイバル」の画像読み取りアシスタントです。
+添付されたスクショ画像（投票メンバー一覧）から、参加しているメンバーの名前（最大12名）を抽出してください。
+
+【厳格なルール】
+1. 以下の【同盟メンバー名簿】の中から、画像内に写っているメンバーを特定して一致する名前を出力してください。
+   名簿: [{roster_str}]
+2. 特殊記号（「ʕ·ᴥ·ʔ」など）や同盟タグ（「M2C」「MMC」「MC」など）は完全に除去してください。
+3. 「とりあえずビール」は名簿にある「toriaezu beer」として扱ってください。「雪乃。」は「雪乃」として扱ってください。
+4. 出力は、1行に1人ずつのメンバー名のみを出力してください。解説や挨拶、余計な文字は一切含めないでください。
+"""
+
+    model_candidates = ['gemini-3.6-flash', 'models/gemini-3.6-flash', 'gemini-flash-latest']
+    raw_text = ""
+    last_err = None
+
+    if GENAI_TYPE == "new":
+        client = genai.Client(api_key=api_key)
+        for m in model_candidates:
+            try:
+                response = client.models.generate_content(
+                    model=m,
+                    contents=[prompt, image]
+                )
+                raw_text = response.text
+                if raw_text:
+                    break
+            except Exception as e:
+                last_err = e
+                continue
+    else:
+        legacy_genai.configure(api_key=api_key)
+        for m in model_candidates:
+            try:
+                clean_m = m.replace("models/", "")
+                model = legacy_genai.GenerativeModel(clean_m)
+                response = model.generate_content([prompt, image])
+                raw_text = response.text
+                if raw_text:
+                    break
+            except Exception as e:
+                last_err = e
+                continue
+
+    if not raw_text:
+        st.error(f"⚠️ AI読み取りエラー: {last_err}")
+        return []
+
+    lines = raw_text.strip().split("\n")
+    extracted = [l.strip().lstrip("・-1234567890. ") for l in lines if l.strip() and not l.startswith("#")]
+    return extracted
 
 # --- 共通の初期化 ---
 st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
@@ -131,7 +219,7 @@ app_mode = st.sidebar.radio(
     "メニュー切り替え",
     [
         "スケジュールを自動で作る✨", 
-        "クレジョイ案内をつくる ✨", 
+        "クレジョイ案内をつくる 🛡️", 
         MENU_SIMULATOR, 
         "新イベントを教え込む📝", 
         "運営マニュアル 📜", 
@@ -171,7 +259,7 @@ if app_mode == "スケジュールを自動で作る✨":
         else:
             st.info("報酬型イベントがまだ登録されていません。")
 
-        if st.button("案内文をポチッと生成！🚀"):
+        if st.button("案内文を生成！🚀"):
             today_points = []
             for ev in active_events:
                 today_points.extend(db[ev]["スケジュール"].get(event_days[ev], []))
@@ -206,100 +294,159 @@ if app_mode == "スケジュールを自動で作る✨":
 # ==========================================
 # 2. クレジョイ案内をつくる画面
 # ==========================================
-elif app_mode == "クレジョイ案内をつくる ✨":
-    st.title("クレジョイ10&20駐屯")
+elif app_mode == "クレジョイ案内をつくる 🛡️":
+    st.title("🛡️ クレジョイ10&20駐屯")
 
-    col_main, col_margin = st.columns([10, 1])
+    roster = load_member_roster()
+
+    with st.expander(f"👥 同盟メンバー名簿の確認・編集（現在: {len(roster)} 名）"):
+        st.caption("あらかじめ同盟メンバーの名前をここに登録しておくと、AIが画像を名簿と照合して完璧に読み取ります。")
+        roster_text = st.text_area("登録メンバー一覧 (1行に1人):", value="\n".join(roster), height=160)
+        if st.button("💾 名簿を保存する"):
+            updated_roster = [r.strip() for r in roster_text.split("\n") if r.strip()]
+            save_member_roster(updated_roster)
+            st.success("メンバー名簿を保存しました！✨")
+            st.rerun()
+
+    st.divider()
+
+    col_main, _ = st.columns([10, 1])
     
     with col_main:
         st.subheader("① 画像をアップロード")
         uploaded_file = st.file_uploader("投票メンバーのスクショを選択", type=["png", "jpg", "jpeg"])
 
         if uploaded_file is not None:
+            raw_image = Image.open(uploaded_file)
+            
             with st.expander("🖼️ アップロードした画像を確認"):
-                st.image(uploaded_file, use_container_width=True)
+                st.image(raw_image, use_container_width=True)
             
-            sample_ocr_results = [
-                "わからんʕ·ᴥ·ʔM²C", "haruponʕ·ᴥ·ʔMMc", "マンダラʕ·ᴥ·ʔM2C", 
-                "ナーナ", "ハンギョʕ·ᴥ·ʔMC", "愛犬クルʕ·ᴥ·ʔMMC", 
-                "とりあえずビールʕ·ᴥ·ʔMMC", "わんこʕ·ᴥ·ʔMMC", "れくさすʕ·ᴥ·ʔMMC", 
-                "雪乃。", "やらかす猫ʕ·ᴥ·ʔMMC", "ゆめゆめʕ·ᴥ·ʔMMC"
-            ]
-            
-            cleaned_members = [clean_member_name(name) for name in sample_ocr_results if clean_member_name(name)]
-            
+            if "last_uploaded" not in st.session_state or st.session_state["last_uploaded"] != uploaded_file.name:
+                with st.spinner("AIが画像からメンバーを解析中..."):
+                    parsed_members = extract_members_with_gemini(raw_image, roster)
+                    st.session_state["parsed_members"] = parsed_members
+                    st.session_state["last_uploaded"] = uploaded_file.name
+
+            # --- STEP 2: 読み取り結果の確認・修正 ---
             st.subheader("② メンバーの確認・修正")
+            current_text = "\n".join(st.session_state.get("parsed_members", []))
             members_text = st.text_area(
-                "読み取ったメンバー名 (1行に1人 / 手動修正可)",
-                value="\n".join(cleaned_members),
+                "抽出されたメンバー名 (手動で修正・追加も可能です)",
+                value=current_text,
                 height=180
             )
             member_list = [m.strip() for m in members_text.split("\n") if m.strip()]
             st.caption(f"現在の認識人数: **{len(member_list)} 名**")
 
-            st.divider()
-
-            st.subheader("③ 条件の設定")
-            leader_name = st.selectbox("駐屯リーダーを選択", options=member_list)
-            
-            col_cap, col_own = st.columns(2)
-            max_capacity = col_cap.number_input("リーダーの駐屯容量", min_value=0, value=1500000, step=50000)
-            leader_troops = col_own.number_input("リーダー出陣兵数", min_value=0, value=250000, step=10000)
-
-            ratio_option = st.radio(
-                "兵種比率 (盾 : 槍 : 弓)",
-                ["7 : 3 : 0", "6 : 4 : 0", "カスタム"],
-                horizontal=True
-            )
-
-            if ratio_option == "7 : 3 : 0":
-                shield_r, spear_r, bow_r = 7, 3, 0
-            elif ratio_option == "6 : 4 : 0":
-                shield_r, spear_r, bow_r = 6, 4, 0
+            if not member_list:
+                st.warning("メンバー名が認識できませんでした。上の枠に直接入力してください。")
             else:
-                c1, c2, c3 = st.columns(3)
-                shield_r = c1.number_input("盾", 0, 10, 7)
-                spear_r = c2.number_input("槍", 0, 10, 3)
-                bow_r = c3.number_input("弓", 0, 10, 0)
+                st.divider()
 
-            st.divider()
-
-            if st.button("🧮 兵士数を計算する", type="primary", use_container_width=True):
-                other_members = [m for m in member_list if m != leader_name]
-                num_others = len(other_members)
+                # --- STEP 3: 条件設定 ---
+                st.subheader("③ 条件の設定")
                 
-                if num_others == 0:
-                    st.error("メンバーがリーダー1名しかいません。")
+                leader_name = st.selectbox("駐屯リーダーを選択", options=member_list)
+                
+                calc_mode = st.radio(
+                    "計算方法を選択",
+                    ["【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）", "リーダー駐屯枠から自動等分（従来通り）"],
+                    index=0
+                )
+                
+                if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）":
+                    target_troops = st.number_input("1人あたりの派遣兵士数", min_value=1000, value=120000, step=10000)
                 else:
-                    remaining_space = max_capacity - leader_troops
-                    per_person_total = remaining_space // num_others
-                    
-                    total_ratio = shield_r + spear_r + bow_r
-                    shield_count = int(per_person_total * (shield_r / total_ratio))
-                    spear_count = int(per_person_total * (spear_r / total_ratio))
-                    bow_count = int(per_person_total * (bow_r / total_ratio)) if bow_r > 0 else 0
+                    col_cap, col_own = st.columns(2)
+                    max_capacity = col_cap.number_input("リーダーの駐屯容量", min_value=0, value=1500000, step=50000)
+                    leader_troops = col_own.number_input("リーダー出陣兵数", min_value=0, value=250000, step=10000)
 
-                    members_str = "、".join(other_members)
+                ratio_option = st.radio(
+                    "兵種比率 (盾 : 槍 : 弓)",
+                    ["7 : 3 : 0", "6 : 4 : 0", "カスタム"],
+                    horizontal=True
+                )
 
-                    copy_text = f"【クレジョイ10&20駐屯】\n"
-                    copy_text += f"👑駐屯リーダー: {leader_name}\n\n"
-                    copy_text += f"🌟部隊準備\n"
-                    copy_text += f"左英雄: ジェシー\n"
-                    copy_text += f"合計: {per_person_total:,}\n"
+                if ratio_option == "7 : 3 : 0":
+                    shield_r, spear_r, bow_r = 7, 3, 0
+                elif ratio_option == "6 : 4 : 0":
+                    shield_r, spear_r, bow_r = 6, 4, 0
+                else:
+                    c1, c2, c3 = st.columns(3)
+                    shield_r = c1.number_input("盾", 0, 10, 7)
+                    spear_r = c2.number_input("槍", 0, 10, 3)
+                    bow_r = c3.number_input("弓", 0, 10, 0)
+
+                st.divider()
+
+                # --- STEP 4: 計算＆出力 ---
+                if st.button("🧮 兵士数を計算する", type="primary", use_container_width=True):
+                    all_others = [m for m in member_list if m != leader_name]
                     
-                    if bow_r == 0:
-                        copy_text += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
-                        copy_text += f"└ 槍兵: {spear_count:,} ({spear_r})\n\n"
+                    if not all_others:
+                        st.error("メンバーがリーダー1名しかいません。")
                     else:
-                        copy_text += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
-                        copy_text += f"├ 槍兵: {spear_count:,} ({spear_r})\n"
-                        copy_text += f"└ 弓兵: {bow_count:,} ({bow_r})\n\n"
+                        total_ratio = shield_r + spear_r + bow_r
                         
-                    copy_text += f"📋対象メンバー ({num_others}名)\n"
-                    copy_text += f"{members_str}"
-                    
-                    st.success("計算完了！枠内を長押し・タップでコピーできます")
-                    st.code(copy_text, language="text")
+                        if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）":
+                            per_person_total = int(target_troops)
+                            
+                            # 130万人上限による参加人数の制限（リーダー1名を含む全体の枠数）
+                            MAX_CAP = 1300000
+                            total_allowed_slots = MAX_CAP // per_person_total  # リーダー含む総枠数
+                            max_allowed_others = max(0, total_allowed_slots - 1)  # リーダーを除く一般メンバー枠数
+                            
+                            # 許容人数分に対象メンバーを絞り込み
+                            other_members = all_others[:max_allowed_others]
+                            excluded_members = all_others[max_allowed_others:]
+                            
+                            if excluded_members:
+                                st.warning(f"⚠️ 駐屯容量（130万）を超過しないよう、リーダー1名＋一般メンバー{len(other_members)}名に制限し、後方の {len(excluded_members)} 名（{ '、'.join(excluded_members) }）を対象から除外しました。")
+                            
+                            top_helpers = other_members[:2]
+                            helper_text = "、".join(top_helpers)
+                        else:
+                            other_members = all_others
+                            remaining_space = max_capacity - leader_troops
+                            per_person_total = remaining_space // len(other_members)
+                            top_helpers = []
+                        
+                        shield_count = int(per_person_total * (shield_r / total_ratio))
+                        spear_count = int(per_person_total * (spear_r / total_ratio))
+                        bow_count = int(per_person_total * (bow_r / total_ratio)) if bow_r > 0 else 0
+
+                        num_others = len(other_members)
+                        members_str = "、".join(other_members)
+
+                        # --- コピペ枠①: 駐屯指示 ---
+                        copy_text_1 = f"【クレジョイ10&20駐屯】\n"
+                        copy_text_1 += f"👑駐屯リーダー: {leader_name}\n\n"
+                        copy_text_1 += f"⭐1人あたりの派遣数\n"
+                        copy_text_1 += f"左英雄: ジェシー\n"
+                        copy_text_1 += f"合計: {per_person_total:,}\n"
+                        
+                        if bow_r == 0:
+                            copy_text_1 += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
+                            copy_text_1 += f"└ 槍兵: {spear_count:,} ({spear_r})"
+                        else:
+                            copy_text_1 += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
+                            copy_text_1 += f"├ 槍兵: {spear_count:,} ({spear_r})\n"
+                            copy_text_1 += f"└ 弓兵: {bow_count:,} ({bow_r})"
+
+                        # --- コピペ枠②: 対象メンバー ---
+                        copy_text_2 = f"📋 対象メンバー ({num_others}名)\n"
+                        copy_text_2 += f"{members_str}\n"
+                        if top_helpers:
+                            copy_text_2 += f"\n⚠️ 駐屯枠が不足した場合は駐屯していないメンバーで補填をお願いします！（早い者勝ち）"
+
+                        st.success("計算完了！")
+                        
+                        st.markdown("##### 📌 コピペ用①（駐屯指示）")
+                        st.code(copy_text_1, language=None)
+                        
+                        st.markdown("##### 📌 コピペ用②（対象メンバー）")
+                        st.code(copy_text_2, language=None)
 
 # ==========================================
 # 3. 要塞・砦 行軍シミュレーター画面
