@@ -26,11 +26,11 @@ MEMBER_ROSTER_FILE = 'alliance_members.json'
 
 # --- 同盟メンバー初期名簿（全26名） ---
 DEFAULT_ROSTER = [
-    "わからん", "ringo", "harupon", "マンダラ", "ナーナ", 
+    "わからん", "ringo", "harupon", "マンダラ", "LOSER", "ナーナ", 
     "ハンギョ", "toriaezu beer", "愛犬クル", "くま3", "ショーン伍長", 
     "mii", "わんこ", "すん", "れくさす", "アッシュ", 
     "KENT", "なはらた", "花ちゃん", "やらかす猫", "雪乃", 
-    "えんまめ", "ジョイ", "ばりうけさん", "ゆめゆめ", "ポメラニアンもち", "ケイヤン"
+    "えんまめ", "ジョイ", "ばりうけさん", "ゆめゆめ", "ポメラニアンもち", "ケイヤン", "なんし～", "黒潮丸", "しるす", "Lilia", "ぶどう", "かなはなむ", "レグルス", "SGT", "マーンダラ", "シオン"
 ]
 
 def load_member_roster():
@@ -214,7 +214,7 @@ if app_mode == "スケジュールを自動で作る✨":
         else:
             st.info("報酬型イベントがまだ登録されていません。")
 
-        if st.button("案内文をポチッと生成！🚀"):
+        if st.button("案内文を生成！🚀"):
             today_points = []
             for ev in active_events:
                 today_points.extend(db[ev]["スケジュール"].get(event_days[ev], []))
@@ -392,9 +392,9 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         copy_text_2 = f"📋 対象メンバー ({num_others}名)\n"
                         copy_text_2 += f"{members_str}\n"
                         if top_helpers:
-                            copy_text_2 += f"\n⚠️ 駐屯枠の不足・端数分は上位2名（{helper_text}）で補填をお願いします！"
+                            copy_text_2 += f"\n⚠️ 駐屯枠が不足した場合は駐屯していないメンバーで補填をお願いします！（早い者勝ち）"
 
-                        st.success("計算完了！チャットの改行制限に合わせて2つに分割しています。")
+                        st.success("計算完了！")
                         
                         st.markdown("##### 📌 コピペ用①（駐屯指示）")
                         st.code(copy_text_1, language=None)
