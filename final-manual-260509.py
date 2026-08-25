@@ -213,7 +213,7 @@ if "first_load" not in st.session_state:
 
 # --- サイドバーメニュー ---
 st.sidebar.title("🛡️ MMC管理メニュー")
-MENU_SIMULATOR = "要塞・砦 行軍シミュレーター ⚔️"
+MENU_SIMULATOR = "要塞・砦行軍を計算する ⚔️"
 
 app_mode = st.sidebar.radio(
     "メニュー切り替え",
@@ -449,10 +449,10 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         st.code(copy_text_2, language=None)
 
 # ==========================================
-# 3. 要塞・砦 行軍シミュレーター画面
+# 3. 要塞・砦行軍を計算する画面
 # ==========================================
 elif app_mode == MENU_SIMULATOR:
-    st.title("⚔️ 要塞・砦 行軍時間シミュレーター")
+    st.title("⚔️ 要塞・砦行軍を計算する")
     st.caption("本部・確定砦・確定要塞からの行軍時間と、前回取得同盟を踏まえた作戦検討テキストを生成します。")
 
     col_left, col_right = st.columns([1, 1], gap="large")
