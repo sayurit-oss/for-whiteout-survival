@@ -254,7 +254,6 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 
     roster = load_member_roster()
 
-    # --- 名簿管理アコーディオン ---
     with st.expander(f"👥 同盟メンバー名簿の確認・編集（現在: {len(roster)} 名）"):
         st.caption("あらかじめ同盟メンバーの名前をここに登録しておくと、AIが画像を名簿と照合して完璧に読み取ります。")
         roster_text = st.text_area("登録メンバー一覧 (1行に1人):", value="\n".join(roster), height=160)
@@ -278,7 +277,6 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
             with st.expander("🖼️ アップロードした画像を確認"):
                 st.image(raw_image, use_container_width=True)
             
-            # --- Gemini AI による高精度読み取り ---
             if "last_uploaded" not in st.session_state or st.session_state["last_uploaded"] != uploaded_file.name:
                 with st.spinner("AIが画像からメンバーを解析中..."):
                     parsed_members = extract_members_with_gemini(raw_image, roster)
@@ -294,34 +292,31 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                 height=180
             )
             member_list = [m.strip() for m in members_text.split("\n") if m.strip()]
-            st.caption(f"現在の参加人数: **{len(member_list)} 名**")
+            st.caption(f"現在の認識人数: **{len(member_list)} 名**")
 
             if not member_list:
                 st.warning("メンバー名が認識できませんでした。上の枠に直接入力してください。")
             else:
                 st.divider()
 
-                # --- STEP 3: 条件設定（モード分岐） ---
+                # --- STEP 3: 条件設定 ---
                 st.subheader("③ 条件の設定")
                 
                 leader_name = st.selectbox("駐屯リーダーを選択", options=member_list)
                 
-                # 計算モードの選択
                 calc_mode = st.radio(
                     "計算方法を選択",
-                    ["【おすすめ】1人あたりの兵士数を固定指定（上位2名補填）", "リーダー駐屯枠から自動等分（従来通り）"],
+                    ["【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）", "リーダー駐屯枠から自動等分（従来通り）"],
                     index=0
                 )
                 
-                # モードごとの入力項目
-                if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上位2名補填）":
-                    target_troops = st.number_input("1人あたりの派遣兵士数 (例: 120,000)", min_value=1000, value=120000, step=10000)
+                if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）":
+                    target_troops = st.number_input("1人あたりの派遣兵士数", min_value=1000, value=120000, step=10000)
                 else:
                     col_cap, col_own = st.columns(2)
                     max_capacity = col_cap.number_input("リーダーの駐屯容量", min_value=0, value=1500000, step=50000)
                     leader_troops = col_own.number_input("リーダー出陣兵数", min_value=0, value=250000, step=10000)
 
-                # 兵種比率の選択
                 ratio_option = st.radio(
                     "兵種比率 (盾 : 槍 : 弓)",
                     ["7 : 3 : 0", "6 : 4 : 0", "カスタム"],
@@ -342,55 +337,70 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 
                 # --- STEP 4: 計算＆出力 ---
                 if st.button("🧮 兵士数を計算する", type="primary", use_container_width=True):
-                    other_members = [m for m in member_list if m != leader_name]
-                    num_others = len(other_members)
+                    all_others = [m for m in member_list if m != leader_name]
                     
-                    if num_others == 0:
+                    if not all_others:
                         st.error("メンバーがリーダー1名しかいません。")
                     else:
                         total_ratio = shield_r + spear_r + bow_r
                         
-                        # モードに応じた兵数決定
-                        if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上位2名補填）":
+                        if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）":
                             per_person_total = int(target_troops)
-                            # 上位2名を取得
+                            
+                            # 130万人上限による参加人数の制限
+                            MAX_CAP = 1300000
+                            max_allowed_members = MAX_CAP // per_person_total
+                            
+                            # 許容人数分に対象メンバーを絞り込み
+                            other_members = all_others[:max_allowed_members]
+                            excluded_members = all_others[max_allowed_members:]
+                            
+                            if excluded_members:
+                                st.warning(f"⚠️ 駐屯容量（130万）を超過しないよう、後方の {len(excluded_members)} 名（{ '、'.join(excluded_members) }）を対象から除外しました。")
+                            
                             top_helpers = other_members[:2]
                             helper_text = "、".join(top_helpers)
                         else:
+                            other_members = all_others
                             remaining_space = max_capacity - leader_troops
-                            per_person_total = remaining_space // num_others
+                            per_person_total = remaining_space // len(other_members)
                             top_helpers = []
                         
                         shield_count = int(per_person_total * (shield_r / total_ratio))
                         spear_count = int(per_person_total * (spear_r / total_ratio))
                         bow_count = int(per_person_total * (bow_r / total_ratio)) if bow_r > 0 else 0
 
+                        num_others = len(other_members)
                         members_str = "、".join(other_members)
 
-                        # コピペ用テキストの組み立て
-                        copy_text = f"【クレジョイ10&20駐屯】\n"
-                        copy_text += f"👑駐屯リーダー: {leader_name}\n\n"
-                        copy_text += f"🛡️ 1人あたりの派遣数\n"
-                        copy_text += f"⭐ 左英雄: ジェシー\n"
-                        copy_text += f"合計: {per_person_total:,}\n"
+                        # --- コピペ枠①: 駐屯指示 ---
+                        copy_text_1 = f"【クレジョイ10&20駐屯】\n"
+                        copy_text_1 += f"👑駐屯リーダー: {leader_name}\n\n"
+                        copy_text_1 += f"🛡️ 1人あたりの派遣数\n"
+                        copy_text_1 += f"⭐ 左英雄: ジェシー\n"
+                        copy_text_1 += f"合計: {per_person_total:,}\n"
                         
                         if bow_r == 0:
-                            copy_text += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
-                            copy_text += f"└ 槍兵: {spear_count:,} ({spear_r})\n\n"
+                            copy_text_1 += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
+                            copy_text_1 += f"└ 槍兵: {spear_count:,} ({spear_r})"
                         else:
-                            copy_text += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
-                            copy_text += f"├ 槍兵: {spear_count:,} ({spear_r})\n"
-                            copy_text += f"└ 弓兵: {bow_count:,} ({bow_r})\n\n"
-                            
-                        copy_text += f"📋 対象メンバー ({num_others}名)\n"
-                        copy_text += f"{members_str}\n"
-                        
-                        # 固定モード時の補填メッセージ追加
+                            copy_text_1 += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
+                            copy_text_1 += f"├ 槍兵: {spear_count:,} ({spear_r})\n"
+                            copy_text_1 += f"└ 弓兵: {bow_count:,} ({bow_r})"
+
+                        # --- コピペ枠②: 対象メンバー ---
+                        copy_text_2 = f"📋 対象メンバー ({num_others}名)\n"
+                        copy_text_2 += f"{members_str}\n"
                         if top_helpers:
-                            copy_text += f"\n⚠️ 駐屯枠の不足・端数分は上位2名（{helper_text}）で補填をお願いします！"
+                            copy_text_2 += f"\n⚠️ 駐屯枠の不足・端数分は上位2名（{helper_text}）で補填をお願いします！"
+
+                        st.success("計算完了！チャットの改行制限に合わせて2つに分割しています。")
                         
-                        st.success("計算完了！枠内を長押し・タップでコピーできます")
-                        st.code(copy_text, language=None)
+                        st.markdown("##### 📌 コピペ用①（駐屯指示）")
+                        st.code(copy_text_1, language=None)
+                        
+                        st.markdown("##### 📌 コピペ用②（対象メンバー）")
+                        st.code(copy_text_2, language=None)
 
 # ==========================================
 # 3. イベント追加画面
