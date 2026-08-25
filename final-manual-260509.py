@@ -421,8 +421,8 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 
                         # --- コピペ枠①: 駐屯指示 ---
                         copy_text_1 = f"【クレジョイ10&20駐屯】\n"
-                        copy_text_1 += f"👑駐屯リーダー: {leader_name}\n\n"
-                        copy_text_1 += f"⭐1人あたりの派遣数\n"
+                        copy_text_1 += f"👑 駐屯リーダー: {leader_name}\n\n"
+                        copy_text_1 += f"⭐ 1人あたりの派遣数\n"
                         copy_text_1 += f"左英雄: ジェシー\n"
                         copy_text_1 += f"合計: {per_person_total:,}\n"
                         
@@ -503,8 +503,8 @@ elif app_mode == MENU_SIMULATOR:
 
     output_lines = []
     output_lines.append("【確定】")
-    output_lines.append(f"{selected_fortress.replace('要塞', '')}号要塞：{fortress_reward}({fortress_alliance})")
-    output_lines.append(f"{selected_fixed_fort.replace('砦', '')}号砦：{fixed_fort_reward}({fixed_fort_alliance})")
+    output_lines.append(f"{selected_fortress.replace('要塞', '')}要塞：{fortress_reward}({fortress_alliance})")
+    output_lines.append(f"{selected_fixed_fort.replace('砦', '')}砦：{fixed_fort_reward}({fixed_fort_alliance})")
     output_lines.append("")
     output_lines.append("【要検討】")
     output_lines.append(candidate_reward_theme)
@@ -520,7 +520,7 @@ elif app_mode == MENU_SIMULATOR:
         
         c_label = c["name"].replace("砦", "")
         
-        line = f"{c_label}号({t_hq}分)({t_fixed}分)({t_fortress}分)({c['alliance']})"
+        line = f"{c_label}({t_hq}分)({t_fixed}分)({t_fortress}分)({c['alliance']})"
         output_lines.append(line)
         
         table_rows.append({
