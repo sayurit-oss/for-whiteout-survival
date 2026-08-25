@@ -376,8 +376,8 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         # --- コピペ枠①: 駐屯指示 ---
                         copy_text_1 = f"【クレジョイ10&20駐屯】\n"
                         copy_text_1 += f"👑駐屯リーダー: {leader_name}\n\n"
-                        copy_text_1 += f"🛡️ 1人あたりの派遣数\n"
-                        copy_text_1 += f"⭐ 左英雄: ジェシー\n"
+                        copy_text_1 += f"⭐1人あたりの派遣数\n"
+                        copy_text_1 += f"左英雄: ジェシー\n"
                         copy_text_1 += f"合計: {per_person_total:,}\n"
                         
                         if bow_r == 0:
