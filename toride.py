@@ -347,16 +347,17 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）":
                             per_person_total = int(target_troops)
                             
-                            # 130万人上限による参加人数の制限
+                            # 130万人上限による参加人数の制限（リーダー1名を含む全体の枠数）
                             MAX_CAP = 1300000
-                            max_allowed_members = MAX_CAP // per_person_total
+                            total_allowed_slots = MAX_CAP // per_person_total  # リーダー含む総枠数
+                            max_allowed_others = max(0, total_allowed_slots - 1)  # リーダーを除く一般メンバー枠数
                             
                             # 許容人数分に対象メンバーを絞り込み
-                            other_members = all_others[:max_allowed_members]
-                            excluded_members = all_others[max_allowed_members:]
+                            other_members = all_others[:max_allowed_others]
+                            excluded_members = all_others[max_allowed_others:]
                             
                             if excluded_members:
-                                st.warning(f"⚠️ 駐屯容量（130万）を超過しないよう、後方の {len(excluded_members)} 名（{ '、'.join(excluded_members) }）を対象から除外しました。")
+                                st.warning(f"⚠️ 駐屯容量（130万）を超過しないよう、リーダー1名＋一般メンバー{len(other_members)}名に制限し、後方の {len(excluded_members)} 名（{ '、'.join(excluded_members) }）を対象から除外しました。")
                             
                             top_helpers = other_members[:2]
                             helper_text = "、".join(top_helpers)
