@@ -398,27 +398,36 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 
                 # --- STEP 4: 計算＆出力 ---
                 if st.button("🧮 駐屯配属と兵士数を計算する", type="primary", use_container_width=True):
-                    # リーダー2名を除いた一般メンバー（リストの並び順＝強い順）
-                    candidates = [m for m in member_list if m not in (leader_lv10, leader_lv20)]
-                    
                     # 1つの本部に駐屯できる一般メンバー枠数（143万制限、リーダー分は別途1枠）
                     MAX_CAP = 1430000
                     per_person_total = int(target_troops)
                     total_allowed_slots = MAX_CAP // per_person_total
                     max_general_slots = max(0, total_allowed_slots - 1)  # 1つの本部あたりの一般メンバー枠
 
-                    # 配属ロジック：
-                    # 強い人から優先してLv20に配置し、溢れた人をLv10に配置
-                    members_lv20 = candidates[:max_general_slots]
-                    remaining = candidates[max_general_slots:]
+                    # --- 1. Lv20一般メンバーの配属（強い順、ただしLv20リーダーのみ除外） ---
+                    cand_lv20 = [m for m in member_list if m != leader_lv20]
+                    members_lv20 = cand_lv20[:max_general_slots]
 
-                    # Lv10の空き枠を計算
-                    if len(remaining) < max_general_slots:
-                        # 不足している場合、強い人（candidatesの上から順）が再駐屯して埋める
-                        needed = max_general_slots - len(remaining)
-                        members_lv10 = remaining + candidates[:needed]
+                    # --- 2. Lv10一般メンバーの配属 ---
+                    # 全体からLv10リーダーを除いた候補（強い順）
+                    cand_lv10 = [m for m in member_list if m != leader_lv10]
+                    
+                    # まず「Lv20の一般枠に入らなかった人」を最優先で割り当て
+                    overflow_from_lv20 = [m for m in cand_lv10 if m not in members_lv20]
+                    
+                    if len(overflow_from_lv20) >= max_general_slots:
+                        # 溢れた人だけでLv10の枠が埋まる場合
+                        members_lv10 = overflow_from_lv20[:max_general_slots]
                     else:
-                        members_lv10 = remaining[:max_general_slots]
+                        # 枠が余る場合、まず溢れた人を全員入れ、足りない分は「強い人（cand_lv10の上から順）」を再駐屯として補充
+                        members_lv10 = overflow_from_lv20.copy()
+                        needed = max_general_slots - len(members_lv10)
+                        for m in cand_lv10:
+                            if needed <= 0:
+                                break
+                            if m not in members_lv10:
+                                members_lv10.append(m)
+                                needed -= 1
 
                     # 兵種計算
                     total_ratio = shield_r + spear_r + bow_r
@@ -485,7 +494,6 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 
                     st.markdown("##### 📌 コピペ用③（Lv20 駐屯案内）")
                     st.code(copy_text_3, language=None)
-
 # ==========================================
 # 3. 要塞・砦行軍を計算する画面
 # ==========================================
