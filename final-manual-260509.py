@@ -373,7 +373,11 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                     default_lv20_idx = 1 if len(member_list) > 1 else 0
                     leader_lv20 = st.selectbox("👑 Lv20 駐屯リーダーを選択", options=member_list, index=default_lv20_idx)
                 
-                target_troops = st.number_input("1人あたりの派遣兵士数", min_value=1000, value=130000, step=10000)
+                c_cap1, c_cap2 = st.columns(2)
+                with c_cap1:
+                    max_cap_input = st.number_input("🏰 本部駐屯容量（駐屯箱サイズ）", min_value=100000, value=1430000, step=10000)
+                with c_cap2:
+                    target_troops = st.number_input("🪖 1人あたりの派遣兵士数", min_value=1000, value=130000, step=10000)
 
                 ratio_option = st.radio(
                     "兵種比率 (盾 : 槍 : 弓)",
@@ -398,8 +402,8 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 
                 # --- STEP 4: 計算＆出力 ---
                 if st.button("🧮 駐屯配属と兵士数を計算する", type="primary", use_container_width=True):
-                    # 1つの本部に駐屯できる一般メンバー枠数（143万制限、リーダー分は別途1枠）
-                    MAX_CAP = 1430000
+                    # 1つの本部に駐屯できる一般メンバー枠数（設定された本部容量制限、リーダー分は別途1枠）
+                    MAX_CAP = int(max_cap_input)
                     per_person_total = int(target_troops)
                     total_allowed_slots = MAX_CAP // per_person_total
                     max_general_slots = max(0, total_allowed_slots - 1)  # 1つの本部あたりの一般メンバー枠
