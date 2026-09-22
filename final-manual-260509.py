@@ -412,22 +412,21 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                     # 全体からLv10リーダーを除いた候補（強い順）
                     cand_lv10 = [m for m in member_list if m != leader_lv10]
                     
-                    # まず「Lv20の一般枠に入らなかった人」を最優先で割り当て
+                    # Lv20から溢れたメンバー（まだ駐屯が決まっていない人）
                     overflow_from_lv20 = [m for m in cand_lv10 if m not in members_lv20]
                     
                     if len(overflow_from_lv20) >= max_general_slots:
                         # 溢れた人だけでLv10の枠が埋まる場合
                         members_lv10 = overflow_from_lv20[:max_general_slots]
                     else:
-                        # 枠が余る場合、まず溢れた人を全員入れ、足りない分は「強い人（cand_lv10の上から順）」を再駐屯として補充
-                        members_lv10 = overflow_from_lv20.copy()
-                        needed = max_general_slots - len(members_lv10)
-                        for m in cand_lv10:
-                            if needed <= 0:
-                                break
-                            if m not in members_lv10:
-                                members_lv10.append(m)
-                                needed -= 1
+                        # 枠が余る場合：溢れた全員 ＋ 不足分を強い順（cand_lv10の上から順）で補充
+                        needed_extra = max_general_slots - len(overflow_from_lv20)
+                        # まだLv10に入っていない強い人（=Lv20にも入っている人たち）から必要人数を取得
+                        re_deploy_members = [m for m in cand_lv10 if m in members_lv20][:needed_extra]
+                        
+                        # 選ばれた「再駐屯の強い人」と「溢れた人」を合わせ、全体リストの並び順（強さ順）でソート
+                        selected_set = set(overflow_from_lv20 + re_deploy_members)
+                        members_lv10 = [m for m in cand_lv10 if m in selected_set]
 
                     # 兵種計算
                     total_ratio = shield_r + spear_r + bow_r
@@ -494,6 +493,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
 
                     st.markdown("##### 📌 コピペ用③（Lv20 駐屯案内）")
                     st.code(copy_text_3, language=None)
+                    
 # ==========================================
 # 3. 要塞・砦行軍を計算する画面
 # ==========================================
