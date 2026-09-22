@@ -64,9 +64,10 @@ def get_travel_time(p1_coord, p2_coord):
 DEFAULT_ROSTER = [
     "わからん", "ringo", "harupon", "マンダラ", "LOSER", "ナーナ", 
     "ハンギョ", "toriaezu beer", "愛犬クル", "くま3", "ショーン伍長", 
-    "mii", "わんこ", "すん", "れくさす", "アッシュ", 
-    "KENT", "なはらた", "花ちゃん", "やらかす猫", "雪乃", 
-    "えんまめ", "ジョイ", "ばりうけさん", "ゆめゆめ", "ポメラニアンもち", "ケイヤン", "なんし～", "黒潮丸", "しるす", "Lilia", "ぶどう", "かなはなむ", "レグルス", "SGT", "マーンダラ", "シオン"
+    "mii", "わんこ", "すん", "れくさす", "アッシュ", "おもち",
+    "KENT", "なはらた", "花ちゃん", "やらかす猫", "雪乃", "non",
+    "えんまめ", "ジョイ", "ばりうけさん", "ゆめゆめ", "ポメラニアンもち", "ケイヤン", 
+    "なんし～", "黒潮丸", "しるす", "Lilia", "ぶどう", "かなはなむ", "レグルス", "SGT", "マーンダラ", "シオン"
 ]
 
 def load_member_roster():
@@ -300,7 +301,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
     roster = load_member_roster()
 
     with st.expander(f"👥 同盟メンバー名簿の確認・編集（現在: {len(roster)} 名）"):
-        st.caption("あらかじめ同盟メンバーの名前をここに登録しておくと、AIが画像を名簿と照合して完璧に読み取ります。")
+        st.caption("あらかじめ同盟メンバーの名前をここに登録しておくと、AIが画像を名簿と照合して手ブレなく読み取ります。")
         roster_text = st.text_area("登録メンバー一覧 (1行に1人):", value="\n".join(roster), height=160)
         if st.button("💾 名簿を保存する"):
             updated_roster = [r.strip() for r in roster_text.split("\n") if r.strip()]
@@ -313,31 +314,48 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
     col_main, _ = st.columns([10, 1])
     
     with col_main:
-        st.subheader("① 画像をアップロード")
-        uploaded_file = st.file_uploader("投票メンバーのスクショを選択", type=["png", "jpg", "jpeg"])
+        st.subheader("① 画像をアップロード（最大2枚まで選択可能）")
+        uploaded_files = st.file_uploader("投票メンバーのスクショを選択（1枚で約12名分）", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
-        if uploaded_file is not None:
-            raw_image = Image.open(uploaded_file)
+        if uploaded_files:
+            # 2枚超の場合は最初の2枚のみ使用
+            target_files = uploaded_files[:2]
+            if len(uploaded_files) > 2:
+                st.info("※画像が3枚以上選択されています。最初の2枚のみを読み取ります。")
+
+            # 新規アップロードチェック（ファイル名結合で判断）
+            current_file_names = "_".join([f.name for f in target_files])
             
-            with st.expander("🖼️ アップロードした画像を確認"):
-                st.image(raw_image, use_container_width=True)
-            
-            if "last_uploaded" not in st.session_state or st.session_state["last_uploaded"] != uploaded_file.name:
+            if "last_uploaded_names" not in st.session_state or st.session_state["last_uploaded_names"] != current_file_names:
+                all_extracted = []
                 with st.spinner("AIが画像からメンバーを解析中..."):
-                    parsed_members = extract_members_with_gemini(raw_image, roster)
-                    st.session_state["parsed_members"] = parsed_members
-                    st.session_state["last_uploaded"] = uploaded_file.name
+                    for file in target_files:
+                        raw_image = Image.open(file)
+                        parsed = extract_members_with_gemini(raw_image, roster)
+                        all_extracted.extend(parsed)
+                
+                # 順序を保ちつつ重複を除去（順位・強さを維持するためdict.fromkeysを使用）
+                unique_extracted = list(dict.fromkeys(all_extracted))
+                st.session_state["parsed_members"] = unique_extracted
+                st.session_state["last_uploaded_names"] = current_file_names
+
+            # プレビュー表示
+            with st.expander("🖼️ アップロードした画像を確認"):
+                cols = st.columns(len(target_files))
+                for i, file in enumerate(target_files):
+                    with cols[i]:
+                        st.image(Image.open(file), caption=f"{i+1}枚目: {file.name}", use_container_width=True)
 
             # --- STEP 2: 読み取り結果の確認・修正 ---
             st.subheader("② メンバーの確認・修正")
             current_text = "\n".join(st.session_state.get("parsed_members", []))
             members_text = st.text_area(
-                "抽出されたメンバー名 (手動で修正・追加も可能です)",
+                "抽出されたメンバー名 (手動で修正・順序の並び替え・追加も可能です)",
                 value=current_text,
-                height=180
+                height=220
             )
             member_list = [m.strip() for m in members_text.split("\n") if m.strip()]
-            st.caption(f"現在の認識人数: **{len(member_list)} 名**")
+            st.caption(f"現在の認識人数（重複除外後）: **{len(member_list)} 名**")
 
             if not member_list:
                 st.warning("メンバー名が認識できませんでした。上の枠に直接入力してください。")
@@ -347,106 +365,126 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                 # --- STEP 3: 条件設定 ---
                 st.subheader("③ 条件の設定")
                 
-                leader_name = st.selectbox("駐屯リーダーを選択", options=member_list)
+                c_lead1, c_lead2 = st.columns(2)
+                with c_lead1:
+                    leader_lv10 = st.selectbox("👑 Lv10 駐屯リーダーを選択", options=member_list, index=0)
+                with c_lead2:
+                    # デフォルトで2番目のメンバー、存在しない場合は0番目
+                    default_lv20_idx = 1 if len(member_list) > 1 else 0
+                    leader_lv20 = st.selectbox("👑 Lv20 駐屯リーダーを選択", options=member_list, index=default_lv20_idx)
                 
-                calc_mode = st.radio(
-                    "計算方法を選択",
-                    ["【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）", "リーダー駐屯枠から自動等分"],
-                    index=0
-                )
-                
-                if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）":
-                    target_troops = st.number_input("1人あたりの派遣兵士数", min_value=1000, value=120000, step=10000)
-                else:
-                    col_cap, col_own = st.columns(2)
-                    max_capacity = col_cap.number_input("リーダーの駐屯容量", min_value=0, value=1500000, step=50000)
-                    leader_troops = col_own.number_input("リーダー出陣兵数", min_value=0, value=250000, step=10000)
+                target_troops = st.number_input("1人あたりの派遣兵士数", min_value=1000, value=130000, step=10000)
 
                 ratio_option = st.radio(
                     "兵種比率 (盾 : 槍 : 弓)",
-                    ["7 : 3 : 0", "6 : 4 : 0", "カスタム"],
+                    ["10 : 0 : 0", "7 : 3 : 0", "6 : 4 : 0", "カスタム"],
+                    index=0,
                     horizontal=True
                 )
 
-                if ratio_option == "7 : 3 : 0":
+                if ratio_option == "10 : 0 : 0":
+                    shield_r, spear_r, bow_r = 10, 0, 0
+                elif ratio_option == "7 : 3 : 0":
                     shield_r, spear_r, bow_r = 7, 3, 0
                 elif ratio_option == "6 : 4 : 0":
                     shield_r, spear_r, bow_r = 6, 4, 0
                 else:
                     c1, c2, c3 = st.columns(3)
-                    shield_r = c1.number_input("盾", 0, 10, 7)
-                    spear_r = c2.number_input("槍", 0, 10, 3)
+                    shield_r = c1.number_input("盾", 0, 10, 10)
+                    spear_r = c2.number_input("槍", 0, 10, 0)
                     bow_r = c3.number_input("弓", 0, 10, 0)
 
                 st.divider()
 
                 # --- STEP 4: 計算＆出力 ---
-                if st.button("🧮 兵士数を計算する", type="primary", use_container_width=True):
-                    all_others = [m for m in member_list if m != leader_name]
+                if st.button("🧮 駐屯配属と兵士数を計算する", type="primary", use_container_width=True):
+                    # リーダー2名を除いた一般メンバー（リストの並び順＝強い順）
+                    candidates = [m for m in member_list if m not in (leader_lv10, leader_lv20)]
                     
-                    if not all_others:
-                        st.error("メンバーがリーダー1名しかいません。")
+                    # 1つの本部に駐屯できる一般メンバー枠数（143万制限、リーダー分は別途1枠）
+                    MAX_CAP = 1430000
+                    per_person_total = int(target_troops)
+                    total_allowed_slots = MAX_CAP // per_person_total
+                    max_general_slots = max(0, total_allowed_slots - 1)  # 1つの本部あたりの一般メンバー枠
+
+                    # 配属ロジック：
+                    # 強い人から優先してLv20に配置し、溢れた人をLv10に配置
+                    members_lv20 = candidates[:max_general_slots]
+                    remaining = candidates[max_general_slots:]
+
+                    # Lv10の空き枠を計算
+                    if len(remaining) < max_general_slots:
+                        # 不足している場合、強い人（candidatesの上から順）が再駐屯して埋める
+                        needed = max_general_slots - len(remaining)
+                        members_lv10 = remaining + candidates[:needed]
                     else:
-                        total_ratio = shield_r + spear_r + bow_r
-                        
-                        if calc_mode == "【おすすめ】1人あたりの兵士数を固定指定（上限130万制御）":
-                            per_person_total = int(target_troops)
-                            
-                            # 140万人上限による参加人数の制限（リーダー1名を含む全体の枠数）
-                            MAX_CAP = 1400000
-                            total_allowed_slots = MAX_CAP // per_person_total  # リーダー含む総枠数
-                            max_allowed_others = max(0, total_allowed_slots - 1)  # リーダーを除く一般メンバー枠数
-                            
-                            # 許容人数分に対象メンバーを絞り込み
-                            other_members = all_others[:max_allowed_others]
-                            excluded_members = all_others[max_allowed_others:]
-                            
-                            if excluded_members:
-                                st.warning(f"⚠️ 駐屯容量（140万）を超過しないよう、リーダー1名＋一般メンバー{len(other_members)}名に制限し、後方の {len(excluded_members)} 名（{ '、'.join(excluded_members) }）を対象から除外しました。")
-                            
-                            top_helpers = other_members[:2]
-                            helper_text = "、".join(top_helpers)
-                        else:
-                            other_members = all_others
-                            remaining_space = max_capacity - leader_troops
-                            per_person_total = remaining_space // len(other_members)
-                            top_helpers = []
-                        
-                        shield_count = int(per_person_total * (shield_r / total_ratio))
-                        spear_count = int(per_person_total * (spear_r / total_ratio))
-                        bow_count = int(per_person_total * (bow_r / total_ratio)) if bow_r > 0 else 0
+                        members_lv10 = remaining[:max_general_slots]
 
-                        num_others = len(other_members)
-                        members_str = "、".join(other_members)
+                    # 兵種計算
+                    total_ratio = shield_r + spear_r + bow_r
+                    shield_count = int(per_person_total * (shield_r / total_ratio)) if total_ratio > 0 else 0
+                    spear_count = int(per_person_total * (spear_r / total_ratio)) if total_ratio > 0 else 0
+                    bow_count = int(per_person_total * (bow_r / total_ratio)) if total_ratio > 0 else 0
 
-                        # --- コピペ枠①: 駐屯指示 ---
-                        copy_text_1 = f"【クレジョイ10&20駐屯】\n"
-                        copy_text_1 += f"👑 駐屯リーダー: {leader_name}\n\n"
-                        copy_text_1 += f"⭐ 1人あたりの派遣数\n"
-                        copy_text_1 += f"左英雄: ジェシー\n"
-                        copy_text_1 += f"合計: {per_person_total:,}\n"
-                        
-                        if bow_r == 0:
-                            copy_text_1 += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
-                            copy_text_1 += f"└ 槍兵: {spear_count:,} ({spear_r})"
-                        else:
-                            copy_text_1 += f"├ 盾兵: {shield_count:,} ({shield_r})\n"
-                            copy_text_1 += f"├ 槍兵: {spear_count:,} ({spear_r})\n"
-                            copy_text_1 += f"└ 弓兵: {bow_count:,} ({bow_r})"
+                    # 2名ごとに改行・「、」区切りのフォーマット関数
+                    def format_member_list(m_list):
+                        lines = []
+                        for i in range(0, len(m_list), 2):
+                            chunk = m_list[i:i+2]
+                            lines.append("、".join(chunk))
+                        return "\n".join(lines)
 
-                        # --- コピペ枠②: 対象メンバー ---
-                        copy_text_2 = f"📋 対象メンバー ({num_others}名)\n"
-                        copy_text_2 += f"{members_str}\n"
-                        if top_helpers:
-                            copy_text_2 += f"\n⚠️ 駐屯が不足した場合は駐屯していないメンバーで補填をお願いします！（早い者勝ち）"
+                    formatted_lv10_members = format_member_list(members_lv10)
+                    formatted_lv20_members = format_member_list(members_lv20)
 
-                        st.success("計算完了！")
-                        
-                        st.markdown("##### 📌 コピペ用①（駐屯指示）")
-                        st.code(copy_text_1, language=None)
-                        
-                        st.markdown("##### 📌 コピペ用②（対象メンバー）")
-                        st.code(copy_text_2, language=None)
+                    # --- テキスト構築 ---
+                    # 兵士の内訳テキストを作成
+                    troop_details = []
+                    if shield_r > 0:
+                        troop_details.append(f"├ 盾兵: {shield_count:,} ({shield_r})")
+                    if spear_r > 0:
+                        troop_details.append(f"├ 槍兵: {spear_count:,} ({spear_r})")
+                    if bow_r > 0:
+                        troop_details.append(f"├ 弓兵: {bow_count:,} ({bow_r})")
+                    
+                    if troop_details:
+                        # 最後の要素の記号を └ に変える
+                        troop_details[-1] = troop_details[-1].replace("├", "└")
+                    
+                    troop_str = "\n".join(troop_details)
+
+                    # （１）全体案内・兵力指定
+                    copy_text_1 = f"【21:30～ クレジョイ】\n"
+                    copy_text_1 += f"本部駐屯メンバーはLv10とLv20で異なります。ご注意ください。\n"
+                    copy_text_1 += f"該当するみなさまはご準備のほど、よろしくお願いいたします。\n\n"
+                    copy_text_1 += f"⭐ 1人あたりの派遣数\n"
+                    copy_text_1 += f"左英雄: ジェシー\n"
+                    copy_text_1 += f"合計: {per_person_total:,}\n"
+                    if troop_str:
+                        copy_text_1 += f"{troop_str}"
+
+                    # （２）Lv10 駐屯案内
+                    copy_text_2 = f"【Lv10 本部駐屯】\n"
+                    copy_text_2 += f"👑 駐屯リーダー: {leader_lv10}\n\n"
+                    copy_text_2 += f"📋 対象メンバー ({len(members_lv10)}名)\n"
+                    copy_text_2 += f"{formatted_lv10_members}"
+
+                    # （３）Lv20 駐屯案内
+                    copy_text_3 = f"【Lv20 本部駐屯】\n"
+                    copy_text_3 += f"👑 駐屯リーダー: {leader_lv20}\n\n"
+                    copy_text_3 += f"📋 対象メンバー ({len(members_lv20)}名)\n"
+                    copy_text_3 += f"{formatted_lv20_members}"
+
+                    st.success("計算・配属が完了しました！")
+                    
+                    st.markdown("##### 📌 コピペ用①（全体案内・兵士数）")
+                    st.code(copy_text_1, language=None)
+                    
+                    st.markdown("##### 📌 コピペ用②（Lv10 駐屯案内）")
+                    st.code(copy_text_2, language=None)
+
+                    st.markdown("##### 📌 コピペ用③（Lv20 駐屯案内）")
+                    st.code(copy_text_3, language=None)
 
 # ==========================================
 # 3. 要塞・砦行軍を計算する画面
