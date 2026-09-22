@@ -315,7 +315,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
     
     with col_main:
         st.subheader("① 画像をアップロード（最大2枚まで選択可能）")
-        uploaded_files = st.file_uploader("投票メンバーのスクショを選択（1枚で約12名分）", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("オンライン投票メンバーのスクショを選択", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
         if uploaded_files:
             # 2枚超の場合は最初の2枚のみ使用
@@ -468,7 +468,8 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                     # （１）全体案内・兵力指定
                     copy_text_1 = f"【21:30～ クレジョイ】\n"
                     copy_text_1 += f"本部駐屯メンバーはLv10とLv20で異なります。ご注意ください。\n"
-                    copy_text_1 += f"該当するみなさまはご準備のほど、よろしくお願いいたします。\n\n"
+                    copy_text_1 += f"該当するみなさまはご準備のほど、よろしくお願いいたします(* ᴗ ᴗ)⁾⁾"
+                    copy_text_1 += f"兵士数が不足した場合は上位の人から順に補充願います🙏\n\n"
                     copy_text_1 += f"⭐ 1人あたりの派遣数\n"
                     copy_text_1 += f"左英雄: ジェシー\n"
                     copy_text_1 += f"合計: {per_person_total:,}\n"
