@@ -453,11 +453,11 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                     # 兵士の内訳テキストを作成
                     troop_details = []
                     if shield_r > 0:
-                        troop_details.append(f"├ 盾兵: {shield_count:,} ({shield_r})")
+                        troop_details.append(f"├ 盾兵: {shield_count:,} ")
                     if spear_r > 0:
-                        troop_details.append(f"├ 槍兵: {spear_count:,} ({spear_r})")
+                        troop_details.append(f"├ 槍兵: {spear_count:,} ")
                     if bow_r > 0:
-                        troop_details.append(f"├ 弓兵: {bow_count:,} ({bow_r})")
+                        troop_details.append(f"├ 弓兵: {bow_count:,}")
                     
                     if troop_details:
                         # 最後の要素の記号を └ に変える
