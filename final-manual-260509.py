@@ -468,9 +468,9 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                     # （１）全体案内・兵力指定
                     copy_text_1 = f"【21:30～ クレジョイ】\n"
                     copy_text_1 += f"本部駐屯メンバーはLv10とLv20で異なります。\n"
-                    copy_text_1 += f"該当するみなさまはご準備のほど、よろしくお願いいたします(* ᴗ ᴗ)⁾⁾\n\n"
+                    copy_text_1 += f"該当するみなさまは部隊登録のほど、よろしくお願いいたします(* ᴗ ᴗ)⁾⁾\n\n"
                     copy_text_1 += f"各都市への援軍は🐻と同じ左英雄、自領地は最強英雄にしてみてください✨\n\n"
-                    copy_text_1 += f"⭐ 1人あたりの派遣数\n"
+                    copy_text_1 += f"⭐ 本部1人あたりの派遣数\n"
                     copy_text_1 += f"左英雄: ジェシー\n"
                     copy_text_1 += f"合計: {per_person_total:,}\n"
                     if troop_str:
