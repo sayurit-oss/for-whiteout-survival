@@ -159,7 +159,7 @@ def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
 【厳格なルール】
 1. 以下の【同盟メンバー名簿】の中から、画像内に写っているメンバーを特定して一致する名前を出力してください。
    名簿: [{roster_str}]
-2. 特殊記号（「ʕ·ᴥ·ʔ」など）や同盟タグ（「M2C」「MMC」「MC」など）は完全に除去してください。
+2. 特殊記号（「ʕ·ᴥ·ʔ」など）や同盟タグ（「M2C」「MMC」「MC」「yfc」「肴」など）は完全に除去してください。
 3. 「とりあえずビール」は名簿にある「toriaezu beer」として扱ってください。「雪乃。」は「雪乃」として扱ってください。
 4. 出力は、1行に1人ずつのメンバー名のみを出力してください。解説や挨拶、余計な文字は一切含めないでください。
 """
@@ -489,7 +489,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                     copy_text_2 += f"👑 駐屯リーダー: {leader_lv10}\n\n"
                     copy_text_2 += f"📋 対象メンバー ({len(members_lv10)}名)\n"
                     copy_text_2 += f"{formatted_lv10_members}\n\n"
-                    copy_text_2 += f"⭐ 兵士比率 (合計: {per_person_total:,})\n"
+                    copy_text_2 += f"⭐ 兵士比率\n"
                     copy_text_2 += f"{troop_str_lv10}"
 
                     # （３）Lv20 駐屯案内
@@ -497,7 +497,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                     copy_text_3 += f"👑 駐屯リーダー: {leader_lv20}\n\n"
                     copy_text_3 += f"📋 対象メンバー ({len(members_lv20)}名)\n"
                     copy_text_3 += f"{formatted_lv20_members}\n\n"
-                    copy_text_3 += f"⭐ 兵士比率 (合計: {per_person_total:,})\n"
+                    copy_text_3 += f"⭐ 兵士比率\n"
                     copy_text_3 += f"{troop_str_lv20}"
 
                     st.success("計算・配属が完了しました！")
