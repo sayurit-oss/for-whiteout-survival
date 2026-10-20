@@ -369,7 +369,6 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                 with c_lead1:
                     leader_lv10 = st.selectbox("👑 Lv10 駐屯リーダーを選択", options=member_list, index=0)
                 with c_lead2:
-                    # デフォルトで2番目のメンバー、存在しない場合は0番目
                     default_lv20_idx = 1 if len(member_list) > 1 else 0
                     leader_lv20 = st.selectbox("👑 Lv20 駐屯リーダーを選択", options=member_list, index=default_lv20_idx)
                 
@@ -379,116 +378,131 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                 with c_cap2:
                     target_troops = st.number_input("🪖 1人あたりの派遣兵士数", min_value=1000, value=130000, step=10000)
 
-                ratio_option = st.radio(
-                    "兵種比率 (盾 : 槍 : 弓)",
-                    ["10 : 0 : 0", "7 : 3 : 0", "6 : 4 : 0", "カスタム"],
-                    index=0,
-                    horizontal=True
-                )
+                st.markdown("#### ⚔️ 兵種比率の設定")
+                r_col1, r_col2 = st.columns(2)
+                
+                # --- Lv10 兵種比率 ---
+                with r_col1:
+                    st.caption("🛡️ **Lv10 兵種比率 (盾 : 槍 : 弓)**")
+                    ratio_opt_lv10 = st.radio(
+                        "Lv10 兵種選択",
+                        ["10 : 0 : 0", "7 : 3 : 0", "6 : 4 : 0", "カスタム"],
+                        index=0,
+                        horizontal=True,
+                        key="ratio_lv10"
+                    )
+                    if ratio_opt_lv10 == "10 : 0 : 0":
+                        shield_r10, spear_r10, bow_r10 = 10, 0, 0
+                    elif ratio_opt_lv10 == "7 : 3 : 0":
+                        shield_r10, spear_r10, bow_r10 = 7, 3, 0
+                    elif ratio_opt_lv10 == "6 : 4 : 0":
+                        shield_r10, spear_r10, bow_r10 = 6, 4, 0
+                    else:
+                        c1, c2, c3 = st.columns(3)
+                        shield_r10 = c1.number_input("Lv10 盾", 0, 10, 10, key="s10")
+                        spear_r10 = c2.number_input("Lv10 槍", 0, 10, 0, key="p10")
+                        bow_r10 = c3.number_input("Lv10 弓", 0, 10, 0, key="b10")
 
-                if ratio_option == "10 : 0 : 0":
-                    shield_r, spear_r, bow_r = 10, 0, 0
-                elif ratio_option == "7 : 3 : 0":
-                    shield_r, spear_r, bow_r = 7, 3, 0
-                elif ratio_option == "6 : 4 : 0":
-                    shield_r, spear_r, bow_r = 6, 4, 0
-                else:
-                    c1, c2, c3 = st.columns(3)
-                    shield_r = c1.number_input("盾", 0, 10, 10)
-                    spear_r = c2.number_input("槍", 0, 10, 0)
-                    bow_r = c3.number_input("弓", 0, 10, 0)
+                # --- Lv20 兵種比率 ---
+                with r_col2:
+                    st.caption("⚔️ **Lv20 兵種比率 (盾 : 槍 : 弓)**")
+                    ratio_opt_lv20 = st.radio(
+                        "Lv20 兵種選択",
+                        ["10 : 0 : 0", "7 : 3 : 0", "6 : 4 : 0", "カスタム"],
+                        index=0,
+                        horizontal=True,
+                        key="ratio_lv20"
+                    )
+                    if ratio_opt_lv20 == "10 : 0 : 0":
+                        shield_r20, spear_r20, bow_r20 = 10, 0, 0
+                    elif ratio_opt_lv20 == "7 : 3 : 0":
+                        shield_r20, spear_r20, bow_r20 = 7, 3, 0
+                    elif ratio_opt_lv20 == "6 : 4 : 0":
+                        shield_r20, spear_r20, bow_r20 = 6, 4, 0
+                    else:
+                        c1, c2, c3 = st.columns(3)
+                        shield_r20 = c1.number_input("Lv20 盾", 0, 10, 10, key="s20")
+                        spear_r20 = c2.number_input("Lv20 槍", 0, 10, 0, key="p20")
+                        bow_r20 = c3.number_input("Lv20 弓", 0, 10, 0, key="b20")
 
                 st.divider()
 
                 # --- STEP 4: 計算＆出力 ---
                 if st.button("🧮 駐屯配属と兵士数を計算する", type="primary", use_container_width=True):
-                    # 1つの本部に駐屯できる一般メンバー枠数（設定された本部容量制限、リーダー分は別途1枠）
                     MAX_CAP = int(max_cap_input)
                     per_person_total = int(target_troops)
                     total_allowed_slots = MAX_CAP // per_person_total
-                    max_general_slots = max(0, total_allowed_slots - 1)  # 1つの本部あたりの一般メンバー枠
+                    max_general_slots = max(0, total_allowed_slots - 1)
 
-                    # --- 1. Lv20一般メンバーの配属（強い順、ただしLv20リーダーのみ除外） ---
+                    # --- 1. Lv20一般メンバーの配属 ---
                     cand_lv20 = [m for m in member_list if m != leader_lv20]
                     members_lv20 = cand_lv20[:max_general_slots]
 
                     # --- 2. Lv10一般メンバーの配属 ---
-                    # 全体からLv10リーダーを除いた候補（強い順）
                     cand_lv10 = [m for m in member_list if m != leader_lv10]
-                    
-                    # Lv20から溢れたメンバー（まだ駐屯が決まっていない人）
                     overflow_from_lv20 = [m for m in cand_lv10 if m not in members_lv20]
                     
                     if len(overflow_from_lv20) >= max_general_slots:
-                        # 溢れた人だけでLv10の枠が埋まる場合
                         members_lv10 = overflow_from_lv20[:max_general_slots]
                     else:
-                        # 枠が余る場合：溢れた全員 ＋ 不足分を強い順（cand_lv10の上から順）で補充
                         needed_extra = max_general_slots - len(overflow_from_lv20)
-                        # まだLv10に入っていない強い人（=Lv20にも入っている人たち）から必要人数を取得
                         re_deploy_members = [m for m in cand_lv10 if m in members_lv20][:needed_extra]
-                        
-                        # 選ばれた「再駐屯の強い人」と「溢れた人」を合わせ、全体リストの並び順（強さ順）でソート
                         selected_set = set(overflow_from_lv20 + re_deploy_members)
                         members_lv10 = [m for m in cand_lv10 if m in selected_set]
 
-                    # 兵種計算
-                    total_ratio = shield_r + spear_r + bow_r
-                    shield_count = int(per_person_total * (shield_r / total_ratio)) if total_ratio > 0 else 0
-                    spear_count = int(per_person_total * (spear_r / total_ratio)) if total_ratio > 0 else 0
-                    bow_count = int(per_person_total * (bow_r / total_ratio)) if total_ratio > 0 else 0
+                    # --- 兵種計算関数 ---
+                    def calc_troops(s_r, p_r, b_r, total):
+                        t_ratio = s_r + p_r + b_r
+                        if t_ratio == 0:
+                            return 0, 0, 0
+                        s_c = int(total * (s_r / t_ratio))
+                        p_c = int(total * (p_r / t_ratio))
+                        b_c = int(total * (b_r / t_ratio)) if b_r > 0 else 0
+                        return s_c, p_c, b_c
 
-                    # 2名ごとに改行・「、」区切りのフォーマット関数
-                    def format_member_list(m_list):
-                        lines = []
-                        for i in range(0, len(m_list), 2):
-                            chunk = m_list[i:i+2]
-                            lines.append("、".join(chunk))
-                        return "\n".join(lines)
+                    def build_troop_text(s_r, p_r, b_r, s_c, p_c, b_c):
+                        details = ["左英雄：ジェシー"]
+                        if s_r > 0: details.append(f"├ 盾兵: {s_c:,}")
+                        if p_r > 0: details.append(f"├ 槍兵: {p_c:,}")
+                        if b_r > 0: details.append(f"├ 弓兵: {b_c:,}")
+                        if len(details) > 1:
+                            details[-1] = details[-1].replace("├", "└")
+                        return "\n".join(details)
 
-                    formatted_lv10_members = format_member_list(members_lv10)
-                    formatted_lv20_members = format_member_list(members_lv20)
+                    s_c10, p_c10, b_c10 = calc_troops(shield_r10, spear_r10, bow_r10, per_person_total)
+                    troop_str_lv10 = build_troop_text(shield_r10, spear_r10, bow_r10, s_c10, p_c10, b_c10)
 
-                    # --- テキスト構築 ---
-                    # 兵士の内訳テキストを作成
-                    troop_details = []
-                    if shield_r > 0:
-                        troop_details.append(f"├ 盾兵: {shield_count:,} ")
-                    if spear_r > 0:
-                        troop_details.append(f"├ 槍兵: {spear_count:,} ")
-                    if bow_r > 0:
-                        troop_details.append(f"├ 弓兵: {bow_count:,}")
-                    
-                    if troop_details:
-                        # 最後の要素の記号を └ に変える
-                        troop_details[-1] = troop_details[-1].replace("├", "└")
-                    
-                    troop_str = "\n".join(troop_details)
+                    s_c20, p_c20, b_c20 = calc_troops(shield_r20, spear_r20, bow_r20, per_person_total)
+                    troop_str_lv20 = build_troop_text(shield_r20, spear_r20, bow_r20, s_c20, p_c20, b_c20)
 
-                    # （１）全体案内・兵力指定
-                    copy_text_1 = f"【21:30～ クレジョイ】\n"
-                    copy_text_1 += f"該当するみなさまは部隊登録のほど、よろしくお願いいたします(* ᴗ ᴗ)⁾⁾\n\n"
-                    copy_text_1 += f"⭐ 本部1人あたりの派遣数\n"
-                    copy_text_1 += f"左英雄: ジェシー\n"
-                    copy_text_1 += f"合計: {per_person_total:,}\n"
-                    if troop_str:
-                        copy_text_1 += f"{troop_str}"
+                    # 改行なし・全員「、」区切り
+                    formatted_lv10_members = "、".join(members_lv10)
+                    formatted_lv20_members = "、".join(members_lv20)
+
+                    # （１）全体案内
+                    copy_text_1 = "【21:30～ クレジョイ】\n"
+                    copy_text_1 += "該当するみなさまは部隊登録のほど、よろしくお願いいたします(* ᴗ ᴗ)⁾⁾\n"
+                    copy_text_1 += "Lv10と20で兵士比率が異なります。"
 
                     # （２）Lv10 駐屯案内
-                    copy_text_2 = f"【Lv10 本部駐屯】\n"
+                    copy_text_2 = "【Lv10本部駐屯】\n"
                     copy_text_2 += f"👑 駐屯リーダー: {leader_lv10}\n\n"
                     copy_text_2 += f"📋 対象メンバー ({len(members_lv10)}名)\n"
-                    copy_text_2 += f"{formatted_lv10_members}"
+                    copy_text_2 += f"{formatted_lv10_members}\n\n"
+                    copy_text_2 += f"⭐ 兵士比率 (合計: {per_person_total:,})\n"
+                    copy_text_2 += f"{troop_str_lv10}"
 
                     # （３）Lv20 駐屯案内
-                    copy_text_3 = f"【Lv20 本部駐屯】\n"
+                    copy_text_3 = "【Lv20本部駐屯】\n"
                     copy_text_3 += f"👑 駐屯リーダー: {leader_lv20}\n\n"
                     copy_text_3 += f"📋 対象メンバー ({len(members_lv20)}名)\n"
-                    copy_text_3 += f"{formatted_lv20_members}"
+                    copy_text_3 += f"{formatted_lv20_members}\n\n"
+                    copy_text_3 += f"⭐ 兵士比率 (合計: {per_person_total:,})\n"
+                    copy_text_3 += f"{troop_str_lv20}"
 
                     st.success("計算・配属が完了しました！")
                     
-                    st.markdown("##### 📌 コピペ用①（全体案内・兵士数）")
+                    st.markdown("##### 📌 コピペ用①（全体案内）")
                     st.code(copy_text_1, language=None)
                     
                     st.markdown("##### 📌 コピペ用②（Lv10 駐屯案内）")
