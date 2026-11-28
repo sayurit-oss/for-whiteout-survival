@@ -140,28 +140,54 @@ def save_db(db):
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
-# --- Gemini API を使った画像認識関数 ---
-def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
+# --- 総力文字列（例: "300.5M", "1.2B"）を数値に変換するヘルパー ---
+def parse_power_value(power_str: str) -> float:
+    if not power_str:
+        return 0.0
+    s = str(power_str).upper().replace(",", "").strip()
+    match = re.search(r'([\d.]+)\s*([BMK]?)', s)
+    if not match:
+        return 0.0
+    val = float(match.group(1))
+    unit = match.group(2)
+    if unit == 'B':
+        return val * 1_000_000_000
+    elif unit == 'M':
+        return val * 1_000_000
+    elif unit == 'K':
+        return val * 1_000
+    return val
+
+# --- Gemini API を使った画像認識関数 (左上の総力＋メンバー一覧を取得) ---
+def extract_members_with_gemini(image: Image.Image, roster: list) -> tuple[float, list]:
     api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", "")).strip()
     if not api_key:
         st.error("⚠️ GEMINI_API_KEY が見つかりません。Streamlitの `Secrets` に設定してください。")
-        return []
+        return 0.0, []
     
     if not GENAI_TYPE:
         st.error("⚠️ Geminiのライブラリがインストールされていません。requirements.txt を確認してください。")
-        return []
+        return 0.0, []
 
     roster_str = ", ".join(roster)
     prompt = f"""
 あなたはゲーム「ホワイトアウト・サバイバル」の画像読み取りアシスタントです。
-添付されたスクショ画像（投票メンバー一覧）から、参加しているメンバーの名前（最大12名）を抽出してください。
+添付されたスクショ画像（投票メンバー一覧）から、以下の2つを抽出してください。
+
+1. 【画像左上のメンバーの総力数値】（例: 300.5M、1.2B、850K など）
+2. 【画像内に写っている全メンバーの名前】（上から順・左から順、最大12名）
 
 【厳格なルール】
-1. 以下の【同盟メンバー名簿】の中から、画像内に写っているメンバーを特定して一致する名前を出力してください。
-   名簿: [{roster_str}]
-2. 特殊記号（「ʕ·ᴥ·ʔ」など）や同盟タグ（「M2C」「MMC」「MC」「yfc」「肴」など）は完全に除去してください。
-3. 「とりあえずビール」は名簿にある「toriaezu beer」として扱ってください。「雪乃。」は「雪乃」として扱ってください。
-4. 出力は、1行に1人ずつのメンバー名のみを出力してください。解説や挨拶、余計な文字は一切含めないでください。
+- 以下の【同盟メンバー名簿】の中から、画像内に写っているメンバーを特定して一致する名前を出力してください。
+  名簿: [{roster_str}]
+- 特殊記号（「ʕ·ᴥ·ʔ」など）や同盟タグ（「M2C」「MMC」「MC」「yfc」「肴」など）は完全に除去してください。
+- 「とりあえずビール」は名簿にある「toriaezu beer」として扱ってください。「雪乃。」は「雪乃」として扱ってください。
+- 出力フォーマットは必ず以下の形式のみとし、解説や挨拶、マークダウン装飾などは一切含めないでください。
+
+TOP_POWER: 300.5M
+メンバー1
+メンバー2
+メンバー3
 """
 
     model_candidates = ['gemini-3.6-flash', 'models/gemini-3.6-flash', 'gemini-flash-latest']
@@ -198,11 +224,25 @@ def extract_members_with_gemini(image: Image.Image, roster: list) -> list:
 
     if not raw_text:
         st.error(f"⚠️ AI読み取りエラー: {last_err}")
-        return []
+        return 0.0, []
 
     lines = raw_text.strip().split("\n")
-    extracted = [l.strip().lstrip("・-1234567890. ") for l in lines if l.strip() and not l.startswith("#")]
-    return extracted
+    top_power = 0.0
+    extracted = []
+    
+    for l in lines:
+        line = l.strip()
+        if not line or line.startswith("#") or line.startswith("```"):
+            continue
+        if line.upper().startswith("TOP_POWER:"):
+            power_part = line.split(":", 1)[1].strip()
+            top_power = parse_power_value(power_part)
+        else:
+            clean_name = line.lstrip("・-1234567890. ")
+            if clean_name:
+                extracted.append(clean_name)
+
+    return top_power, extracted
 
 # --- 共通の初期化 ---
 st.set_page_config(page_title="MMC同盟管理ツール", page_icon="🛡️", layout="wide")
@@ -315,7 +355,7 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
     
     with col_main:
         st.subheader("① 画像をアップロード（最大2枚まで選択可能）")
-        uploaded_files = st.file_uploader("オンライン投票メンバーのスクショを選択", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("オンライン投票メンバーのスクショを選択（順番不問・総力順で自動整列します）", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
         if uploaded_files:
             # 2枚超の場合は最初の2枚のみ使用
@@ -327,24 +367,42 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
             current_file_names = "_".join([f.name for f in target_files])
             
             if "last_uploaded_names" not in st.session_state or st.session_state["last_uploaded_names"] != current_file_names:
-                all_extracted = []
-                with st.spinner("AIが画像からメンバーを解析中..."):
+                parsed_results = []
+                with st.spinner("AIが画像からメンバーと左上の総力を解析中..."):
                     for file in target_files:
                         raw_image = Image.open(file)
-                        parsed = extract_members_with_gemini(raw_image, roster)
-                        all_extracted.extend(parsed)
+                        top_power, parsed = extract_members_with_gemini(raw_image, roster)
+                        parsed_results.append({
+                            "file": file,
+                            "top_power": top_power,
+                            "members": parsed
+                        })
+                
+                # 左上メンバーの総力が高い順（降順）に画像を並び替え
+                parsed_results.sort(key=lambda x: x["top_power"], reverse=True)
+                
+                all_extracted = []
+                for res in parsed_results:
+                    all_extracted.extend(res["members"])
                 
                 # 順序を保ちつつ重複を除去（順位・強さを維持するためdict.fromkeysを使用）
                 unique_extracted = list(dict.fromkeys(all_extracted))
                 st.session_state["parsed_members"] = unique_extracted
+                st.session_state["sorted_files_info"] = [
+                    {"file": r["file"], "top_power": r["top_power"]} for r in parsed_results
+                ]
                 st.session_state["last_uploaded_names"] = current_file_names
 
-            # プレビュー表示
-            with st.expander("🖼️ アップロードした画像を確認"):
-                cols = st.columns(len(target_files))
-                for i, file in enumerate(target_files):
-                    with cols[i]:
-                        st.image(Image.open(file), caption=f"{i+1}枚目: {file.name}", use_container_width=True)
+            # プレビュー表示（総力順に並び替えた後の順序で表示）
+            with st.expander("🖼️ アップロードした画像を確認（総力順）"):
+                sorted_info = st.session_state.get("sorted_files_info", [])
+                if sorted_info:
+                    cols = st.columns(len(sorted_info))
+                    for i, info in enumerate(sorted_info):
+                        with cols[i]:
+                            p_val = info["top_power"]
+                            p_label = f" / 左上総力: {p_val / 1_000_000:.1f}M" if p_val > 0 else ""
+                            st.image(Image.open(info["file"]), caption=f"{i+1}枚目: {info['file'].name}{p_label}", use_container_width=True)
 
             # --- STEP 2: 読み取り結果の確認・修正 ---
             st.subheader("② メンバーの確認・修正")
@@ -392,16 +450,16 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         key="ratio_lv10"
                     )
                     if ratio_opt_lv10 == "10 : 0 : 0":
-                        shield_r10, spear_r10, bow_r10 = 10, 0, 0
+                        shield_r10, spear_r10, bow_r10 = 10.0, 0.0, 0.0
                     elif ratio_opt_lv10 == "7 : 3 : 0":
-                        shield_r10, spear_r10, bow_r10 = 7, 3, 0
+                        shield_r10, spear_r10, bow_r10 = 7.0, 3.0, 0.0
                     elif ratio_opt_lv10 == "6 : 4 : 0":
-                        shield_r10, spear_r10, bow_r10 = 6, 4, 0
+                        shield_r10, spear_r10, bow_r10 = 6.0, 4.0, 0.0
                     else:
                         c1, c2, c3 = st.columns(3)
-                        shield_r10 = c1.number_input("Lv10 盾", 0, 10, 10, key="s10")
-                        spear_r10 = c2.number_input("Lv10 槍", 0, 10, 0, key="p10")
-                        bow_r10 = c3.number_input("Lv10 弓", 0, 10, 0, key="b10")
+                        shield_r10 = c1.number_input("Lv10 盾", min_value=0.0, max_value=100.0, value=8.5, step=0.1, format="%.1f", key="s10")
+                        spear_r10 = c2.number_input("Lv10 槍", min_value=0.0, max_value=100.0, value=1.5, step=0.1, format="%.1f", key="p10")
+                        bow_r10 = c3.number_input("Lv10 弓", min_value=0.0, max_value=100.0, value=0.0, step=0.1, format="%.1f", key="b10")
 
                 # --- Lv20 兵種比率 ---
                 with r_col2:
@@ -414,16 +472,16 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         key="ratio_lv20"
                     )
                     if ratio_opt_lv20 == "10 : 0 : 0":
-                        shield_r20, spear_r20, bow_r20 = 10, 0, 0
+                        shield_r20, spear_r20, bow_r20 = 10.0, 0.0, 0.0
                     elif ratio_opt_lv20 == "7 : 3 : 0":
-                        shield_r20, spear_r20, bow_r20 = 7, 3, 0
+                        shield_r20, spear_r20, bow_r20 = 7.0, 3.0, 0.0
                     elif ratio_opt_lv20 == "6 : 4 : 0":
-                        shield_r20, spear_r20, bow_r20 = 6, 4, 0
+                        shield_r20, spear_r20, bow_r20 = 6.0, 4.0, 0.0
                     else:
                         c1, c2, c3 = st.columns(3)
-                        shield_r20 = c1.number_input("Lv20 盾", 0, 10, 10, key="s20")
-                        spear_r20 = c2.number_input("Lv20 槍", 0, 10, 0, key="p20")
-                        bow_r20 = c3.number_input("Lv20 弓", 0, 10, 0, key="b20")
+                        shield_r20 = c1.number_input("Lv20 盾", min_value=0.0, max_value=100.0, value=8.5, step=0.1, format="%.1f", key="s20")
+                        spear_r20 = c2.number_input("Lv20 槍", min_value=0.0, max_value=100.0, value=1.5, step=0.1, format="%.1f", key="p20")
+                        bow_r20 = c3.number_input("Lv20 弓", min_value=0.0, max_value=100.0, value=0.0, step=0.1, format="%.1f", key="b20")
 
                 st.divider()
 
@@ -450,14 +508,14 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                         selected_set = set(overflow_from_lv20 + re_deploy_members)
                         members_lv10 = [m for m in cand_lv10 if m in selected_set]
 
-                    # --- 兵種計算関数 ---
+                    # --- 兵種計算関数（小数点対応・四捨五入で誤差防止） ---
                     def calc_troops(s_r, p_r, b_r, total):
                         t_ratio = s_r + p_r + b_r
-                        if t_ratio == 0:
+                        if t_ratio <= 0:
                             return 0, 0, 0
-                        s_c = int(total * (s_r / t_ratio))
-                        p_c = int(total * (p_r / t_ratio))
-                        b_c = int(total * (b_r / t_ratio)) if b_r > 0 else 0
+                        s_c = round(total * (s_r / t_ratio))
+                        p_c = round(total * (p_r / t_ratio))
+                        b_c = round(total * (b_r / t_ratio)) if b_r > 0 else 0
                         return s_c, p_c, b_c
 
                     def build_troop_text(s_r, p_r, b_r, s_c, p_c, b_c):
