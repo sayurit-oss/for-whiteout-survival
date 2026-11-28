@@ -474,4 +474,555 @@ elif app_mode == "クレジョイ案内をつくる 🛡️":
                     if ratio_opt_lv20 == "10 : 0 : 0":
                         shield_r20, spear_r20, bow_r20 = 10.0, 0.0, 0.0
                     elif ratio_opt_lv20 == "8 : 3 : 2":
-                        shield_r20, spear_r20, bow_r20 = 8.0
+                        shield_r20, spear_r20, bow_r20 = 8.0, 3.0, 2.0
+                    elif ratio_opt_lv20 == "6 : 4 : 0":
+                        shield_r20, spear_r20, bow_r20 = 6.0, 4.0, 0.0
+                    else:
+                        c1, c2, c3 = st.columns(3)
+                        shield_r20 = c1.number_input("Lv20 盾", min_value=0.0, max_value=100.0, value=8.5, step=0.1, format="%.1f", key="s20")
+                        spear_r20 = c2.number_input("Lv20 槍", min_value=0.0, max_value=100.0, value=1.5, step=0.1, format="%.1f", key="p20")
+                        bow_r20 = c3.number_input("Lv20 弓", min_value=0.0, max_value=100.0, value=0.0, step=0.1, format="%.1f", key="b20")
+
+                st.divider()
+
+                # --- STEP 4: 計算＆出力 ---
+                if st.button("🧮 駐屯配属と兵士数を計算する", type="primary", use_container_width=True):
+                    MAX_CAP = int(max_cap_input)
+                    per_person_total = int(target_troops)
+                    total_allowed_slots = MAX_CAP // per_person_total
+                    max_general_slots = max(0, total_allowed_slots - 1)
+
+                    # --- 1. Lv20一般メンバーの配属 ---
+                    cand_lv20 = [m for m in member_list if m != leader_lv20]
+                    members_lv20 = cand_lv20[:max_general_slots]
+
+                    # --- 2. Lv10一般メンバーの配属 ---
+                    cand_lv10 = [m for m in member_list if m != leader_lv10]
+                    overflow_from_lv20 = [m for m in cand_lv10 if m not in members_lv20]
+                    
+                    if len(overflow_from_lv20) >= max_general_slots:
+                        members_lv10 = overflow_from_lv20[:max_general_slots]
+                    else:
+                        needed_extra = max_general_slots - len(overflow_from_lv20)
+                        re_deploy_members = [m for m in cand_lv10 if m in members_lv20][:needed_extra]
+                        selected_set = set(overflow_from_lv20 + re_deploy_members)
+                        members_lv10 = [m for m in cand_lv10 if m in selected_set]
+
+                    # --- 兵種計算関数（小数点対応・四捨五入で誤差防止） ---
+                    def calc_troops(s_r, p_r, b_r, total):
+                        t_ratio = s_r + p_r + b_r
+                        if t_ratio <= 0:
+                            return 0, 0, 0
+                        s_c = round(total * (s_r / t_ratio))
+                        p_c = round(total * (p_r / t_ratio))
+                        b_c = round(total * (b_r / t_ratio)) if b_r > 0 else 0
+                        return s_c, p_c, b_c
+
+                    def build_troop_text(s_r, p_r, b_r, s_c, p_c, b_c):
+                        details = ["左英雄：ジェシー"]
+                        if s_r > 0: details.append(f"├ 盾兵: {s_c:,}")
+                        if p_r > 0: details.append(f"├ 槍兵: {p_c:,}")
+                        if b_r > 0: details.append(f"├ 弓兵: {b_c:,}")
+                        if len(details) > 1:
+                            details[-1] = details[-1].replace("├", "└")
+                        return "\n".join(details)
+
+                    s_c10, p_c10, b_c10 = calc_troops(shield_r10, spear_r10, bow_r10, per_person_total)
+                    troop_str_lv10 = build_troop_text(shield_r10, spear_r10, bow_r10, s_c10, p_c10, b_c10)
+
+                    s_c20, p_c20, b_c20 = calc_troops(shield_r20, spear_r20, bow_r20, per_person_total)
+                    troop_str_lv20 = build_troop_text(shield_r20, spear_r20, bow_r20, s_c20, p_c20, b_c20)
+
+                    # 改行なし・全員「、」区切り
+                    formatted_lv10_members = "、".join(members_lv10)
+                    formatted_lv20_members = "、".join(members_lv20)
+
+                    # （１）全体案内
+                    copy_text_1 = "【21:30～ クレジョイ】\n"
+                    copy_text_1 += "該当するみなさまは部隊登録のほど、よろしくお願いいたします(* ᴗ ᴗ)⁾⁾\n"
+                    copy_text_1 += "Lv10と20で兵士比率が異なります。"
+
+                    # （２）Lv10 駐屯案内
+                    copy_text_2 = "【Lv10本部駐屯】\n"
+                    copy_text_2 += f"👑 駐屯リーダー: {leader_lv10}\n\n"
+                    copy_text_2 += f"📋 対象メンバー ({len(members_lv10)}名)\n"
+                    copy_text_2 += f"{formatted_lv10_members}\n\n"
+                    copy_text_2 += f"⭐ 兵士比率\n"
+                    copy_text_2 += f"{troop_str_lv10}"
+
+                    # （３）Lv20 駐屯案内
+                    copy_text_3 = "【Lv20本部駐屯】\n"
+                    copy_text_3 += f"👑 駐屯リーダー: {leader_lv20}\n\n"
+                    copy_text_3 += f"📋 対象メンバー ({len(members_lv20)}名)\n"
+                    copy_text_3 += f"{formatted_lv20_members}\n\n"
+                    copy_text_3 += f"⭐ 兵士比率\n"
+                    copy_text_3 += f"{troop_str_lv20}"
+
+                    st.success("計算・配属が完了しました！")
+                    
+                    st.markdown("##### 📌 コピペ用①（全体案内）")
+                    st.code(copy_text_1, language=None)
+                    
+                    st.markdown("##### 📌 コピペ用②（Lv10 駐屯案内）")
+                    st.code(copy_text_2, language=None)
+
+                    st.markdown("##### 📌 コピペ用③（Lv20 駐屯案内）")
+                    st.code(copy_text_3, language=None)
+                    
+# ==========================================
+# 3. 要塞・砦行軍を計算する画面
+# ==========================================
+elif app_mode == MENU_SIMULATOR:
+    st.title("⚔️ 要塞・砦の行軍時間を計算する")
+
+    col_left, col_right = st.columns([1, 1], gap="large")
+
+    all_forts = [f"砦{i}号" for i in range(1, 13)]
+
+    with col_left:
+        st.subheader("1. 確定枠")
+        
+        # 確定要塞
+        f_cols = st.columns([2, 2, 2])
+        with f_cols[0]:
+            selected_fortress = st.selectbox("確定要塞", ["要塞1号", "要塞2号", "要塞3号", "要塞4号"], index=2)
+        with f_cols[1]:
+            fortress_reward = st.text_input("要塞 報酬", value="ペット突破")
+        with f_cols[2]:
+            fortress_alliance = st.text_input("前回同盟(要塞)", value="KRr")
+            
+        # 確定砦
+        t_cols = st.columns([2, 2, 2])
+        with t_cols[0]:
+            selected_fixed_fort = st.selectbox("確定砦（前回取得など）", all_forts, index=4)
+        with t_cols[1]:
+            fixed_fort_reward = st.text_input("砦 報酬", value="武器経験値")
+        with t_cols[2]:
+            fixed_fort_alliance = st.text_input("前回同盟(砦)", value="MMC")
+
+        st.divider()
+        st.subheader("2. 検討枠（候補の砦 3箇所）")
+        
+        candidate_reward_theme = st.text_input("検討対象の報酬ジャンル", value="1h加速")
+        
+        default_candidates = ["砦2号", "砦6号", "砦10号"]
+        default_alliances = ["JFW", "wan", "Ris"]
+        
+        candidate_data = []
+        for i in range(3):
+            c_cols = st.columns([2, 2])
+            with c_cols[0]:
+                c_name = st.selectbox(f"候補砦 {i+1}", all_forts, index=all_forts.index(default_candidates[i]), key=f"c_name_{i}")
+            with c_cols[1]:
+                c_ally = st.text_input(f"前回同盟 ({c_name})", value=default_alliances[i], key=f"c_ally_{i}")
+            candidate_data.append({"name": c_name, "alliance": c_ally})
+
+    # 計算処理
+    fortress_coord = LOCATIONS[selected_fortress]
+    fixed_fort_coord = LOCATIONS[selected_fixed_fort]
+
+    output_lines = []
+    output_lines.append("【確定】")
+    output_lines.append(f"{selected_fortress.replace('要塞', '')}要塞：{fortress_reward}({fortress_alliance})")
+    output_lines.append(f"{selected_fixed_fort.replace('砦', '')}砦：{fixed_fort_reward}({fixed_fort_alliance})")
+    output_lines.append("")
+    output_lines.append("【要検討】")
+    output_lines.append(candidate_reward_theme)
+
+    table_rows = []
+
+    for c in candidate_data:
+        c_coord = LOCATIONS[c["name"]]
+        
+        t_hq, _ = get_travel_time(HQ_COORD, c_coord)
+        t_fixed, _ = get_travel_time(fixed_fort_coord, c_coord)
+        t_fortress, _ = get_travel_time(fortress_coord, c_coord)
+        
+        c_label = c["name"].replace("砦", "")
+        
+        line = f"{c_label}({t_hq}分)({t_fixed}分)({t_fortress}分)({c['alliance']})"
+        output_lines.append(line)
+        
+        table_rows.append({
+            "候補砦": c["name"],
+            "本部から": f"{t_hq}分",
+            f"{selected_fixed_fort}から": f"{t_fixed}分",
+            f"{selected_fortress}から": f"{t_fortress}分",
+            "前回取得同盟": c["alliance"]
+        })
+
+    output_lines.append("")
+    output_lines.append("(本部からの時間)")
+    output_lines.append(f"({selected_fixed_fort}からの時間)")
+    output_lines.append(f"({selected_fortress}からの時間)")
+    output_lines.append("(前回取得同盟)")
+
+    final_text = "\n".join(output_lines)
+
+    with col_right:
+        st.subheader("3. 比較テーブル")
+        st.dataframe(pd.DataFrame(table_rows), use_container_width=True, hide_index=True)
+        
+        st.subheader("4. 共有用出力テキスト")
+        st.caption("そのままコピーしてチャットやDiscord等に貼り付けできます")
+        st.code(final_text, language=None)
+
+# ==========================================
+# 4. イベント追加画面
+# ==========================================
+elif app_mode == "新イベントを教え込む📝":
+    st.title("📝 期間限定イベントを覚えさせる")
+    tab1, tab2 = st.tabs(["🏆 ランキング型", "🎁 報酬型"])
+    with tab1:
+        st.info("※恒常イベントはエクセルを編集して保存するだけでOKだよ！")
+        input_days = st.slider("開催日数", 1, 7, 3, key="ranking_days_slider")
+        with st.form("add_event_form"):
+            new_name = st.text_input("イベント名")
+            all_items = ["火晶建築", "領主装備", "領主宝石", "訓練昇格", "英雄欠片", "各種加速", "採集", "ペット", "ダイヤ", "専門家", "専装エナ", "ミスリル", "ルーレット", "鍵", "獣"]
+            new_sched = {f"{d}日目": st.multiselect(f"{d}日目", all_items, key=f"new_d_input_{d}") for d in range(1, input_days + 1)}
+            if st.form_submit_button("サーバーに保存！✨"):
+                if new_name:
+                    db[new_name] = {"スケジュール": new_sched}
+                    save_db(db)
+                    st.success(f"『{new_name}』を保存しました！")
+                    st.rerun()
+                else: 
+                    st.error("名前を入れてね！")
+    with tab2:
+        st.subheader("🎁 報酬型イベントの追加")
+        with st.form("add_other_event_form"):
+            name = st.text_input("イベント名")
+            cat = st.selectbox("カテゴリー", ["高頻度", "要エントリーイベント", "その他イベント"])
+            if st.form_submit_button("報酬型リストに追加！🚀"):
+                if name:
+                    try:
+                        df_o = pd.read_excel(OTHER_EXCEL) if os.path.exists(OTHER_EXCEL) else pd.DataFrame(columns=['カテゴリー', 'イベント名'])
+                        df_o.columns = ['カテゴリー' if 'カテゴリ' in str(c) else c for c in df_o.columns]
+                        df_o = pd.concat([df_o, pd.DataFrame([{'カテゴリー': cat, 'イベント名': name}])], ignore_index=True).drop_duplicates()
+                        df_o.to_excel(OTHER_EXCEL, index=False)
+                        st.success(f"『{name}』を追加しました！")
+                        st.rerun()
+                    except Exception as e: 
+                        st.error(f"保存エラー: {e}")
+                else: 
+                    st.error("イベント名を書いてね！")
+
+# ==========================================
+# 5. マニュアル閲覧画面
+# ==========================================
+elif app_mode == "運営マニュアル 📜":
+    st.title("📜 MMC 運営マニュアル")
+    custom_data = load_custom_data()
+    tab1, tab2, tab3 = st.tabs(["👥 メンバー管理", "🚩 領土・資源", "⚔️ イベント攻略"])
+
+    # --- タブ1: メンバー管理 ---
+    with tab1:
+        with st.expander("1. 新規加入の審査基準"):
+            st.markdown("""申請一覧を確認し、以下の条件を**すべて**満たす場合のみ承認します。  
+            - **炉レベル**: 25以上  
+            - **総力**: 3000万以上  
+            - **名前**: 初期ネーム以外  
+            - **⚠️ IDチェック**: 74始まりに注意！スパイの可能性があるため、承認前に個別メッセージで挨拶を送り、意思疎通（日本語が通じるか等）ができるか慎重に確認する。""")
+
+        with st.expander("2. 入会後のランクアップ（R1 ➡ R3）"):
+            st.markdown("""新メンバーが入会したら、以下のステップをガイドし、完了を確認したらR3へ昇格させます。  
+            - **フレンド登録**: 盟主（R5）へフレンド申請を送るよう指示する。  
+            - **移転**: 同盟本部の周辺へ移転してもらう。  
+            - **ランクアップ**: 上記2点が確認できたら、R1からR3へ手動で変更する。  
+            - **同盟マークの案内**: 名前の後ろに同盟マークをつけてもらうようにうながす。""")
+            st.code("""よかったら、名前の後ろに「ʕ·ᴥ·ʔᴹᴹᶜ」をつけて、MMCの仲間だよってアピールいただけないでしょうか。
+
+【付け方】  
+左上アイコンタッチ
+⇒名前の変更  
+同盟ショップで、改名カードの割引があったら買ってから、おねがいします😊""", language=None)
+            st.code("""ʕ·ᴥ·ʔᴹᴹᶜ""", language=None)
+
+        with st.expander("3. 非アクティブ者の整理"):
+            st.markdown("""同盟の枠を確保し、アクティブ率を維持するための運用です。  
+            **【基本ルール】**  
+            長期未ログインにより自動（または手動）で**R2に降格したメンバー**が対象。  
+            **【退会処置の手順】**  
+            - 対象者のプロフィールから最終ログイン時間を確認。  
+            - 個別メールを送信。   
+            - メール送信後、同盟から追放（退会）処理。""")
+            st.code("""お疲れ様です。長期未ログインのため、一旦同盟を離脱していただく形となります。
+また戻られた際には、再度申請してくださいね～😊 歓迎します！""", language=None)
+
+        with st.expander("4. 規律・コミュニケーション管理"):
+            st.markdown("""イベント時などのトラブル対応指針です。  
+            **【対象】**:  
+            イベントでのルール違反（例：攻撃禁止対象への攻撃等）を行った者。  
+            **【対応フロー】**:  
+            - 同盟チャットまたは個別チャット（DM）で状況を確認し、注意を促す。  
+            - **応答がない（意思疎通が取れない）場合**: 速やかに**R1に降格**させる。   
+            - その後も改善や連絡がない場合は、盟主に報告し、追放を検討する。""")
+            
+        with st.expander("5. ホワイトリストの管理（※盟主専用業務）"):
+            st.markdown("""この操作はシステムの仕様上、**盟主（R5）のみ**が行います。  
+            R4以下は、変更が必要な事案が発生した場合、速やかに詳細（理由と対象）を盟主へ報告してください。  
+            **【事例】**:  
+            - MMCおよびmmc間、その他同盟支援で他同盟に移動する可能性がある者。  
+            - SVS等で他同盟との集結主を兼ねる者。""")
+
+        for exp in custom_data["👥 メンバー管理"]:
+            with st.expander(exp['title']):
+                for block in exp.get('blocks', []):
+                    if block['type'] == 'text': st.markdown(block['content'])
+                    else: st.code(block['content'], language=None)
+
+    # --- タブ2: 領土・資源 ---
+    with tab2:
+        with st.expander("1. ルート作成と旗建設"):
+            st.markdown("""領土は「最短距離」かつ「最大効率」で広げるのが基本です。  
+            **【基本ルートの考え方】**:  
+            - マップ上の同盟資源地を目指して、最短ルートで旗を伸ばします。  
+            - イベント対象となる施設（ステーション、砦等）に隣接させるようにルートを設計します。  
+            **【効率化のテクニック】**:  
+            - 山や川などの通行不能エリアを避け、旗の消費数を最小限に抑えます。  
+            - 外交上のNAP（不戦条約）に基づき、他同盟も旗を跨げるように、ジグザグにルートを引きます。  
+            """)
+        
+        with st.expander("2. パズル進行用「兵1旗」"):
+            st.markdown("""同盟パズルの「旗建設」タスクを効率よく回すための特殊運用です。  
+            **【建設設定】**:  
+            - 旗の建設を開始する際、必ず「兵士1名・英雄なし」の部隊1隊のみで建設を開始します。  
+            - 目的は「あえて建設時間を長くし、多くのメンバーが支援（ヘルプ）やパズル進行に関与できるようにすること」です。  
+            **【監視とアナウンス】**:  
+            - 建設中の旗を確認し、「兵士1名以外」または「英雄入り」の部隊を送っているメンバーがいた場合、同盟チャットで以下のようにアナウンスし、該当部隊を強制送還させます。  
+            **【再設置ループ】**:  
+            - 旗の建設が完了（100%）してしまったら、その旗を即座に解体（破壊）します。  
+            - 解体後、再度同じ場所に「兵士1・英雄なし」で旗を建設し、ループを継続させます。  
+            """)
+            st.code("""パズル用の旗なので、兵士1・英雄なしでお願いします😊
+一旦送還しますね。""", language=None)
+
+        with st.expander("3. 同盟安全採集ポイントの設置"):
+            st.markdown("""何人でも駐屯できる12時間の採集ポイントです。  
+            **【作業】**:  
+            - 前と同じ場所をマップ上でタップ  
+            - ⇒建設  
+            - ⇒同盟領地  
+            - ⇒特殊建築  
+            - ⇒同盟安全採集ポイント  
+            - ⇒マップの座標を同盟チャットで共有  
+            """)
+
+        for exp in custom_data["🚩 領土・資源"]:
+            with st.expander(exp['title']):
+                for block in exp.get('blocks', []):
+                    if block['type'] == 'text': st.markdown(block['content'])
+                    else: st.code(block['content'], language=None)
+
+    # --- タブ3: イベント攻略 ---
+    with tab3:
+        with st.expander("1. 熊狩り"):
+            st.markdown("""クマで参加者全員のポイントを伸ばすための考え方です。  
+            - 基本的には罠の近くに集結主がいた方がいいです。  
+            - 罠強化を忘れないようにアナウンスしましょう。  
+            """)
+            st.code("""🐻今日は熊狩り🐻
+【時間】
+くま2 21:00〜
+くま1 22:00〜
+【攻め方】 
+🚩 集結を出す人：自分の1番強い英雄でお願いします！✨ 
+🚩 集結に乗る人：左英雄はジェシー・ジャセル・ソユン・ジェロニモ・フレンダーを！強い人のところに乗っかるとダメージ伸びるよ💪 
+兵士割合は「弓」を多めにするのがコツです（盾2槍2弓6、盾1槍2弓7など）🏹 
+みんなでダメージ出していこー！楽しもー！🎶 """, language=None)
+
+        with st.expander("2. 峡谷合戦 / 兵器工場争奪戦 （事前登録）"):
+            st.markdown("""この業務の最大の敵は「忘れ」です。  
+            **【時間枠の登録（R4以上）】**:  
+            - **タイミング**: まずは「参加しやすい時間」のアンケート結果から、時間を設定します。  
+            - **操作**: イベント画面から、候補となる時間枠（軍団1：23時、軍団2：21時など）を選択してポチります。  
+            - **周知**: 登録完了後、メンバーに「参戦志願」をポチるよう促します。  
+            **【参加者の選抜】**:  
+            - **基準**: 「参戦志願」を押している人を選抜します。  
+            - **欠員厳禁**: 「参戦志願した方は当日絶対参加」であることを改めて念押しします。  
+            - **メンバー補充**: 15名に達しないとエントリーできません！軍団１（ガチな方）は候補時間枠の投票をしてくれた人の上位から順に補充し、軍団２は総力下位から順に補充します。 
+            """)
+            st.code("""🏹兵器工場争奪戦🏹
+貴重な領主装備アイテムを手に入れる大チャンス✨ 絶対勝つよー！💪 
+別マップで行われる60分のイベント
+王国ルール適応外。都市攻撃されるし、やります🔥
+ポチポチ回復出来ません、回復加速アイテム必須（同盟ショップ）
+
+軍団2 21時
+軍団1 23時
+
+どちらか選んで、出撃管理→参戦志願を押して下さい（R4は自分でチェック）""", language=None)
+            st.code("""🔥峡谷合戦🔥
+3同盟間で争うイベント
+軍団1 23:00-24:00
+軍団2 21:00-22:00
+・マップ内の各拠点（建物）を占領すると継続的にポイントが加算
+・最終的にポイントが多い同盟が勝利
+・氷封宮殿を最後に支配してたら5万ポイント追加
+・ダイヤ加速、進軍加速アリ""", language=None)
+            st.code("""〜燃料の使い方〜
+燃料は時間経過で回復
+・移動
+→キョリによって燃料消費が変化・徴兵→戦闘後に部隊の回復で使用・即時回復→倒されて本部に戻った部隊を即時回復❌燃料の使いすぎには注意しよう！動きたい時には動けなくなります！
+
+""", language=None)
+
+        with st.expander("3. 同盟争覇戦"):
+            st.markdown("""この業務の最大の敵は「忘れ」です。  
+            **【ルートの設定】**:  
+            - **タイミング**: エントリー〆切から数時間以内に、ルートを変更します。  
+            - **操作**: 7:59までに全員に真ん中にエントリーするように促します。その後、ルート変更から、左右中央のルートに割り振ります。どのルートにどう割り振るかは戦略次第となるので、担当者は要確認です。  
+            """)
+            st.code("""⭕同盟争覇戦⭕
+①英雄は、ジーナ抜きの最強。ジーナが最強の装備をしてる時は、付け替えてね
+②兵士配分は基本613。足りない時は、それに近づけるように調整
+③エントリーは、真ん中にお願いします。真ん中で固めると、弱い相手がマッチングされる？らしい。マッチングが終わってから、R4と私でコース分けます。
+④受付ギリギリに再エントリー、最初にエントリーしてから、数日すると、英雄がレベルアップしたり、強い兵士が増えてたりします。なので【2/18 朝8時】までのギリギリの時間で再エントリーお願いします
+⑤色々めんどくさいし、よく分からん！という方は、真ん中に最強でエントリーでOKです🎶
+兵士配分については、盾兵-槍兵-弓兵を6-1-3の割合にしたり5-2-3の割合にすることが大事です
+
+ただ、そうすると見習いとかのレベル低い兵士入っちゃう…と言う方は、紫兵とか青兵のレベル高い兵士入れた方が強いので、割合無視して強い兵士入れましょう💪
+""", language=None)
+
+        with st.expander("4. 城砦・要塞戦（作戦立案・配置）"):
+            st.markdown("""「どこを」「誰が」攻めるかを明確に伝達し、無駄な衝突を避けます。  
+            **【ターゲット選定】**:  
+            - 王国ルール（1同盟1要塞2砦まで等）に基づき、狙う施設を決定します。  
+            - あらかじめ、どの報酬を狙いに行くか、アンケートを立てましょう！。  
+            - そして、盟主会にどの砦を狙いに行くか、宣言します。（要塞は非公開）  
+            **【部隊配置（集結主の指名）】**:  
+            - 参加意思の確認のため、当日、アンケートを実施します。  
+            - 各施設に、同盟内で一番「ハコ（集結規模）」と「戦力」がある人を集結主として割り振ります。  
+            - 同時間帯に２か所の砦戦がある場合は、事前にメンバーを割り振りましょう。
+            - あらかじめ座標を同盟チャットに共有しておきます。  
+            - 早押しが得意なメンバーと二人体制でもいいかもしれません！  
+            **【報酬分配】**:  
+            - 砦もしくは要塞の建物をタップすると、貢献ランキングが確認できます。  
+            - ランキングに乗っている人に割り振ります。  
+            - 同盟⇒拠点争奪⇒報酬
+            - 23時に砦2か所重なっていた！となっていたら、別の砦を担当していた方にも割り振ってあげましょう。  
+            """)
+            st.code("""初手は「集結」のみです！ソロ突撃は禁止だよ〜🙅‍♀️ 
+他の方は左ジェシーで乗ってくださいね！絶対勝つよー！💪✨
+""", language=None)            
+            st.code("""【砦要塞ルール】5/15更新
+◼郊外の↑マークから設定できる戦争分野のバフいずれも禁止 
+◼ペットバフは○
+◼1同盟1要塞2砦まで
+◼初回報酬のみの狙い╳
+既に1要塞（または２砦）所有しているのに初回報酬狙いに行く同盟は、次回要塞ゼロ（マイナス1砦）
+◼初回パエトーンは集結のみ
+◼申請の公開は同盟総力ランキング上位1〜3位の砦申請を盟主会に公開し王国として全報酬の、獲得を目指す
+◼火晶報酬の要塞は、シーズン中、1同盟１回受け取りの制限とする。
+""", language=None)
+
+        with st.expander("5. クレジョイ"):
+            st.markdown("""参加意思の確認のため、当日、アンケートを実施します。  
+            """)
+            st.code("""🔥クレジョイ🔥
+今日はクレジョイ！みんなで守りきるよー！🛡️✨
+🚩〜17:00 参加確認投票中
+🚩〜19:00 ラスト本部防衛メンバー発表
+🚩〜21:00 ラストメンバーは部隊作成→保存
+🚩 21:00〜 兵士交換スタート！同盟チャットに座標貼ってね！
+🚩 21:30〜 クレジョイ開始！🔥""", language=None)
+            st.code("""【ラスト本部防衛メンバーへ】 
+100,000の「盾兵だけ」の部隊を保存しておいてください！弓は入れないでね🙅‍♀️ 
+領主ファイル→部隊→部隊編成→好きな番号に保存""", language=None)
+            st.code("""【オフライン参加】
+オフライン参加の人も、事前に兵士を交換して「都市を空」にするのを忘れずに！😊 
+投票に参加してなくても、参加可能です🎶
+フェーズ7,14,17はオンラインの人のみ！7,14,17で不在の方はオフラインにしてくださいね🎵
+
+【兵士の送り方】
+同盟→メンバー→部隊援助
+
+兵士を交換しない、都市を空にしない方は、見学となります""", language=None)
+
+        with st.expander("6. キルイベ"):
+            st.markdown("""ルールが複雑なイベントです。  
+            - ルール違反を目撃した場合は、同盟チャット・個別チャット等で指摘をしましょう。  
+            - 幹部チャットで報告し、盟主もしくは盟主代行が相手および相手盟主に謝罪に伺いましょう。※要事前確認  
+            - 違反者に、何を間違えたか理解してもらいましょう。
+            """)
+            st.code("""🏹全軍参戦（キルイベ）🏹
+明日9時からキルイベです！
+サーバールール順守🔥""", language=None)
+            st.code("""🏹9時以降は通常ルールです🏹
+キルイベ終了後（9時以降）は通常ルールに戻ります🎵
+【3917サーバー通常ルール(2/3改定)】
+・都市攻撃（同盟未加入も）禁止
+・誰に対しても偵察                 禁止
+・資源採集者への攻撃             禁止       
+・同盟の建物への攻撃             禁止
+・ステーション戦への別同盟員の戦力貸し禁止
+→ただし、留学中（付随文参照）の人は参加○
+・旗立ては、他同盟が跨げるように配慮する
+(連続して建てる場合他の旗で調整お願いします)
+・旗のステ接続は2本まで(本部は2本分)
+→多くの同盟が接続出来るように協力※即時報復禁止。先ずは盟主同士で話し合い。
+""", language=None)
+
+        with st.expander("7. 烈火と牙"):
+            st.markdown("""案内文のみ。  
+            """)
+            st.code("""🔥烈火と牙イベント🔥
+火晶がもらえるからぜひ参加してね🎵
+
+イベントは月曜9:00（UTC基準）に開始し、3日間続きます。
+日曜17:00と25:00の灯台をクリアするが報酬は受け取らず保留にする。
+1日目（月曜）
+9:00以降に保留分をまとめて受け取り、新規灯台処理。灼熱巨獣出現時は即討伐。
+2日目
+3回の更新を逃さず処理し、掃討機能があれば活用。
+交換フェーズ
+溜まった晶核をイベント画面で期限内に使い切る。
+
+""", language=None)
+
+        with st.expander("8. 採集案内"):
+            st.markdown("""案内文のみ。  
+            """)
+            st.code("""🍖明日は採集ポイント🍖
+採集バフ（ダイヤ）
+マップに出て、自分の都市タッチ→都市強化→発展→採集速度
+""", language=None)
+
+        for exp in custom_data["⚔️ イベント攻略"]:
+            with st.expander(exp['title']):
+                for block in exp.get('blocks', []):
+                    if block['type'] == 'text': st.markdown(block['content'])
+                    else: st.code(block['content'], language=None)
+
+# ==========================================
+# 6. マニュアル編集画面
+# ==========================================
+elif app_mode == "マニュアルを編集する ⚙️":
+    st.title("⚙️ マニュアル編集モード")
+    data = load_custom_data()
+    category = st.selectbox("編集するカテゴリ", list(data.keys()))
+    expanders = data[category]
+    for e_idx, exp in enumerate(expanders):
+        with st.container(border=True):
+            exp['title'] = st.text_input(f"見出し {e_idx}", exp['title'], key=f"edit_t_{category}_{e_idx}")
+            for b_idx, block in enumerate(exp['blocks']):
+                c1, c2, c3 = st.columns([1, 4, 0.5])
+                with c1: block['type'] = st.selectbox("種別", ["text", "code"], index=0 if block['type'] == 'text' else 1, key=f"ty_{category}_{e_idx}_{b_idx}")
+                with c2: block['content'] = st.text_area("内容", block['content'], key=f"cn_{category}_{e_idx}_{b_idx}")
+                with c3:
+                    if st.button("❌", key=f"del_{category}_{e_idx}_{b_idx}"):
+                        exp['blocks'].pop(b_idx)
+                        save_custom_data(data)
+                        st.rerun()
+            if st.button("➕ パーツ追加", key=f"add_p_{category}_{e_idx}"):
+                exp['blocks'].append({"type": "text", "content": ""})
+                save_custom_data(data)
+                st.rerun()
+    st.divider()
+    if st.button("✨ 新しい項目を追加"):
+        expanders.append({"title": "新規項目", "blocks": [{"type": "text", "content": ""}]})
+        save_custom_data(data)
+        st.rerun()
+    if st.button("💾 すべての変更を確定保存"):
+        save_custom_data(data)
+        st.success("マニュアルを更新しました！")
